@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">어따대써</string>
+    <string name="tab_parking">주차 위치</string>
+    <string name="tab_history">주차 이력</string>
+    <string name="tab_settings">설정</string>
+    <string name="placeholder_preparing">준비 중</string>
+</resources>
