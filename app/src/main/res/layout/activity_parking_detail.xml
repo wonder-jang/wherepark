@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/detail_title"
+                android:textAppearance="?attr/textAppearanceHeadlineSmall"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/txt_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="?attr/colorPrimaryContainer"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="3dp"
+                android:text="@string/history_badge_current"
+                android:textColor="?attr/colorOnPrimaryContainer"
+                android:visibility="gone" />
+
+            <TableLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:stretchColumns="1">
+
+                <include layout="@layout/row_detail" android:id="@+id/row_parked_at" />
+                <include layout="@layout/row_detail" android:id="@+id/row_place" />
+                <include layout="@layout/row_detail" android:id="@+id/row_level" />
+                <include layout="@layout/row_detail" android:id="@+id/row_floor" />
+                <include layout="@layout/row_detail" android:id="@+id/row_memo" />
+                <include layout="@layout/row_detail" android:id="@+id/row_current" />
+                <include layout="@layout/row_detail" android:id="@+id/row_save_type" />
+                <include layout="@layout/row_detail" android:id="@+id/row_gps" />
+            </TableLayout>
+
+            <ImageView
+                android:id="@+id/img_photo"
+                android:layout_width="match_parent"
+                android:layout_height="240dp"
+                android:layout_marginTop="20dp"
+                android:adjustViewBounds="true"
+                android:background="?attr/colorSurfaceVariant"
+                android:scaleType="centerCrop"
+                android:visibility="gone"
+                android:contentDescription="@string/input_photo" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_map"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="@string/parking_map"
+                android:visibility="gone" />
+
+        </LinearLayout>
+    </ScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="16dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_delete"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:text="@string/detail_delete"
+            app:backgroundTint="?attr/colorError"
+            xmlns:app="http://schemas.android.com/apk/res-auto" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_edit"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:text="@string/detail_edit" />
+    </LinearLayout>
+
+</LinearLayout>

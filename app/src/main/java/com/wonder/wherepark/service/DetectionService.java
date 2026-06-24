@@ -1,0 +1,375 @@
+package com.wonder.wherepark.service;
+
+import android.annotation.SuppressLint;
+import android.app.Notification;
+import android.app.Service;
+import android.bluetooth.BluetoothDevice;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.pm.ServiceInfo;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
+import android.os.Build;
+import android.os.IBinder;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.app.NotificationManagerCompat;
+import androidx.core.app.ServiceCompat;
+import androidx.core.content.ContextCompat;
+
+import com.wonder.wherepark.R;
+import com.wonder.wherepark.data.model.AppSettings;
+import com.wonder.wherepark.data.model.Enums.ParkingStatus;
+import com.wonder.wherepark.data.model.ParkingRecord;
+import com.wonder.wherepark.data.model.ParkingState;
+import com.wonder.wherepark.data.repo.ParkingRepository;
+import com.wonder.wherepark.data.repo.SettingsRepository;
+import com.wonder.wherepark.data.repo.StateRepository;
+import com.wonder.wherepark.engine.StateEngine;
+import com.wonder.wherepark.engine.Stabilizer;
+import com.wonder.wherepark.notify.NotificationHelper;
+import com.wonder.wherepark.util.ParkingFormat;
+import com.wonder.wherepark.util.PermissionUtil;
+import com.wonder.wherepark.util.WifiHelper;
+
+/**
+ * §15 백그라운드 자동 감지 포그라운드 서비스.
+ * 차량 BT 연결/해제(ACL), 집 Wi-Fi 연결/해제(NetworkCallback), 집 반경 진입/이탈(위치)을 감지해
+ * {@link Stabilizer} 안정화 후 {@link StateEngine}으로 상태를 확정한다.
+ * 외부 주차 중에는 이 서비스의 FGS 알림이 §14.2 상시 알림 역할을 한다.
+ */
+public class DetectionService extends Service implements StateEngine.Listener {
+
+    private static final String ACTION_REFRESH = "com.wonder.wherepark.action.REFRESH";
+    private static final long LOC_INTERVAL_MS = 30_000L;
+    private static final float LOC_MIN_DISTANCE_M = 20f;
+
+    private SettingsRepository settingsRepo;
+    private StateRepository stateRepo;
+    private ParkingRepository parkingRepo;
+    private Stabilizer stabilizer;
+    private StateEngine engine;
+
+    private ConnectivityManager connectivityManager;
+    @Nullable
+    private ConnectivityManager.NetworkCallback wifiCallback;
+    @Nullable
+    private LocationManager locationManager;
+    private boolean locationUpdatesActive = false;
+    private boolean started = false;
+
+    // 전이 판단용 baseline (null = 아직 관측 전, 시드만 하고 전이 없음)
+    @Nullable
+    private volatile Boolean lastWifiHome = null;
+    @Nullable
+    private volatile Boolean lastNearHome = null;
+
+    // ----- 외부 진입점 -----
+
+    /** 차량 BT가 설정돼 있으면 감지 서비스를 시작한다. */
+    public static void start(@NonNull Context context) {
+        if (!new SettingsRepository(context).get().hasVehicleBt()) {
+            return; // 자동 감지는 차량 BT 필수(§8.1)
+        }
+        Intent i = new Intent(context, DetectionService.class);
+        ContextCompat.startForegroundService(context, i);
+    }
+
+    /** 상태/설정 변경 후 FGS 알림을 갱신한다(서비스가 떠 있을 때만 의미 있음). */
+    public static void refresh(@NonNull Context context) {
+        if (!new SettingsRepository(context).get().hasVehicleBt()) {
+            return;
+        }
+        Intent i = new Intent(context, DetectionService.class).setAction(ACTION_REFRESH);
+        ContextCompat.startForegroundService(context, i);
+    }
+
+    public static void stop(@NonNull Context context) {
+        context.stopService(new Intent(context, DetectionService.class));
+    }
+
+    // ----- 생명주기 -----
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        settingsRepo = new SettingsRepository(this);
+        stateRepo = new StateRepository(this);
+        parkingRepo = new ParkingRepository(this);
+        stabilizer = new Stabilizer();
+        engine = new StateEngine(this, this);
+        connectivityManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+    }
+
+    @Override
+    public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
+        int type = foregroundType();
+        if (type == 0) {
+            // 위치/BT 권한이 모두 없으면 유효한 FGS 타입을 줄 수 없어 종료
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+        try {
+            ServiceCompat.startForeground(this, NotificationHelper.FGS_ID, buildNotification(), type);
+        } catch (Exception e) {
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+
+        if (!started) {
+            started = true;
+            registerBtReceiver();
+            registerWifiCallback();
+            startLocationUpdates();
+        }
+        return START_STICKY;
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        if (btReceiver != null) {
+            try {
+                unregisterReceiver(btReceiver);
+            } catch (Exception ignored) {
+            }
+        }
+        if (wifiCallback != null && connectivityManager != null) {
+            try {
+                connectivityManager.unregisterNetworkCallback(wifiCallback);
+            } catch (Exception ignored) {
+            }
+        }
+        if (locationUpdatesActive && locationManager != null) {
+            try {
+                locationManager.removeUpdates(locationListener);
+            } catch (Exception ignored) {
+            }
+        }
+        if (stabilizer != null) {
+            stabilizer.cancelAll();
+        }
+    }
+
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) {
+        return null;
+    }
+
+    // ----- FGS 알림 렌더링 -----
+
+    @Override
+    public void onStateChanged() {
+        NotificationManagerCompat.from(this).notify(NotificationHelper.FGS_ID, buildNotification());
+    }
+
+    private Notification buildNotification() {
+        ParkingState st = stateRepo.get();
+        String title = getString(R.string.app_name);
+        String text;
+        String photoPath = null;
+        if (st.parkingStatus == ParkingStatus.DRIVING) {
+            text = getString(R.string.noti_fgs_driving);
+        } else if (st.parkingStatus == ParkingStatus.PARKED) {
+            ParkingRecord current = parkingRepo.getCurrent();
+            if (current != null) {
+                title = getString(R.string.noti_ongoing_title); // "주차 위치"
+                text = ParkingFormat.summary(current);
+                photoPath = current.photoPath; // 사진/그림을 알림에 함께 표시
+            } else {
+                text = getString(R.string.noti_fgs_parked_waiting);
+            }
+        } else {
+            text = getString(R.string.noti_fgs_detecting);
+        }
+        return NotificationHelper.buildForeground(this, title, text, photoPath);
+    }
+
+    private int foregroundType() {
+        int type = 0;
+        if (PermissionUtil.location(this) == PermissionUtil.Status.GRANTED) {
+            type |= ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION;
+        }
+        if (PermissionUtil.bluetooth(this) == PermissionUtil.Status.GRANTED) {
+            type |= ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE;
+        }
+        return type;
+    }
+
+    // ----- 차량 BT (ACL) -----
+
+    private final BroadcastReceiver btReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+            if (device == null) {
+                return;
+            }
+            AppSettings s = settingsRepo.get();
+            if (!matchesVehicle(device, s)) {
+                return;
+            }
+            String action = intent.getAction();
+            if (BluetoothDevice.ACTION_ACL_CONNECTED.equals(action)) {
+                stabilizer.cancel(Stabilizer.CH_BT);      // §6.4-3 후보 취소
+                engine.confirmDriving();                   // §5.2 즉시 운행
+            } else if (BluetoothDevice.ACTION_ACL_DISCONNECTED.equals(action)) {
+                int delay = s.btDisconnectStabilizeSeconds;
+                stabilizer.schedule(Stabilizer.CH_BT, delay,
+                        () -> engine.confirmParkedByBt(delay)); // §10.1
+            }
+        }
+    };
+
+    private void registerBtReceiver() {
+        IntentFilter f = new IntentFilter();
+        f.addAction(BluetoothDevice.ACTION_ACL_CONNECTED);
+        f.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED);
+        // ACL은 시스템 브로드캐스트 → EXPORTED로 등록
+        ContextCompat.registerReceiver(this, btReceiver, f, ContextCompat.RECEIVER_EXPORTED);
+    }
+
+    @SuppressLint("MissingPermission")
+    private boolean matchesVehicle(BluetoothDevice device, AppSettings s) {
+        if (!s.hasVehicleBt()) {
+            return false;
+        }
+        try {
+            if (s.vehicleBtAddress != null && s.vehicleBtAddress.equals(device.getAddress())) {
+                return true;
+            }
+            // 식별값 사용이 어려우면 이름 기준 fallback (§8.1.1)
+            return s.vehicleBtName != null && s.vehicleBtName.equals(device.getName());
+        } catch (SecurityException e) {
+            return false;
+        }
+    }
+
+    // ----- 집 Wi-Fi -----
+
+    private void registerWifiCallback() {
+        if (connectivityManager == null) {
+            return;
+        }
+        NetworkRequest req = new NetworkRequest.Builder()
+                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .build();
+        wifiCallback = new ConnectivityManager.NetworkCallback() {
+            @Override
+            public void onAvailable(@NonNull Network network) {
+                evaluateWifi();
+            }
+
+            @Override
+            public void onLost(@NonNull Network network) {
+                handleHomeWifi(false);
+            }
+        };
+        try {
+            connectivityManager.registerNetworkCallback(req, wifiCallback);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void evaluateWifi() {
+        AppSettings s = settingsRepo.get();
+        if (s.homeWifiSsid == null) {
+            return; // 집 Wi-Fi 미설정 → Wi-Fi 판단 안 함
+        }
+        String ssid = WifiHelper.getCurrentSsid(this);
+        handleHomeWifi(ssid != null && ssid.equals(s.homeWifiSsid));
+    }
+
+    private void handleHomeWifi(boolean homeNow) {
+        AppSettings s = settingsRepo.get();
+        if (s.homeWifiSsid == null) {
+            return;
+        }
+        if (lastWifiHome != null && lastWifiHome == homeNow) {
+            return; // 변화 없음
+        }
+        boolean firstObservation = (lastWifiHome == null);
+        lastWifiHome = homeNow;
+        if (firstObservation) {
+            return; // 초기 시드: 전이 트리거하지 않음
+        }
+        if (homeNow) {
+            int delay = s.wifiConnectStabilizeSeconds;
+            stabilizer.schedule(Stabilizer.CH_WIFI, delay, () -> engine.confirmHome(delay)); // §11.1
+        } else {
+            int delay = s.wifiDisconnectStabilizeSeconds;
+            stabilizer.schedule(Stabilizer.CH_WIFI, delay, () -> engine.confirmAway(delay)); // §11.2
+        }
+    }
+
+    // ----- 집 반경 (GPS) -----
+
+    @SuppressLint("MissingPermission")
+    private void startLocationUpdates() {
+        AppSettings s = settingsRepo.get();
+        if (locationManager == null || !s.hasHomeLocation()
+                || PermissionUtil.location(this) != PermissionUtil.Status.GRANTED) {
+            return;
+        }
+        try {
+            if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,
+                        LOC_INTERVAL_MS, LOC_MIN_DISTANCE_M, locationListener);
+                locationUpdatesActive = true;
+            }
+            if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,
+                        LOC_INTERVAL_MS, LOC_MIN_DISTANCE_M, locationListener);
+                locationUpdatesActive = true;
+            }
+        } catch (SecurityException ignored) {
+        }
+    }
+
+    private final LocationListener locationListener = new LocationListener() {
+        @Override
+        public void onLocationChanged(@NonNull Location location) {
+            AppSettings s = settingsRepo.get();
+            if (!s.hasHomeLocation()) {
+                return;
+            }
+            float[] out = new float[1];
+            Location.distanceBetween(location.getLatitude(), location.getLongitude(),
+                    s.homeLatitude, s.homeLongitude, out);
+            boolean nearNow = out[0] <= s.homeRadiusMeters;
+            if (lastNearHome != null && lastNearHome == nearNow) {
+                return;
+            }
+            boolean firstObservation = (lastNearHome == null);
+            lastNearHome = nearNow;
+            if (firstObservation) {
+                return;
+            }
+            if (nearNow) {
+                int delay = s.gpsEnterStabilizeSeconds;
+                stabilizer.schedule(Stabilizer.CH_GPS, delay, () -> engine.confirmGpsNearHome(delay));
+            } else {
+                int delay = s.gpsExitStabilizeSeconds;
+                stabilizer.schedule(Stabilizer.CH_GPS, delay, () -> engine.confirmGpsOutside(delay));
+            }
+        }
+
+        @Override
+        public void onProviderEnabled(@NonNull String provider) {
+        }
+
+        @Override
+        public void onProviderDisabled(@NonNull String provider) {
+        }
+    };
+}

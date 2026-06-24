@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="32dp">
+
+        <!-- 1. 필수 설정 -->
+        <TextView style="@style/SettingsSectionHeader" android:text="@string/settings_section_required" />
+
+        <LinearLayout android:id="@+id/row_vehicle_bt" style="@style/SettingsRow">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical">
+                <TextView style="@style/SettingsRowTitle" android:text="@string/settings_vehicle_bt" />
+                <TextView android:id="@+id/val_vehicle_bt" style="@style/SettingsRowValue" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 2. 집 설정 -->
+        <TextView style="@style/SettingsSectionHeader" android:text="@string/settings_section_home" />
+
+        <LinearLayout style="@style/SettingsRow" android:background="@null">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical">
+                <TextView style="@style/SettingsRowTitle" android:text="@string/settings_home_wifi" />
+                <TextView android:id="@+id/val_home_wifi" style="@style/SettingsRowValue" />
+            </LinearLayout>
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_save_wifi"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_save_current_wifi" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/SettingsRow" android:background="@null">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical">
+                <TextView style="@style/SettingsRowTitle" android:text="@string/settings_home_location" />
+                <TextView android:id="@+id/val_home_location" style="@style/SettingsRowValue" />
+            </LinearLayout>
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_save_location"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_save_current_location" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/row_home_radius" style="@style/SettingsRow">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical">
+                <TextView style="@style/SettingsRowTitle" android:text="@string/settings_home_radius" />
+                <TextView android:id="@+id/val_home_radius" style="@style/SettingsRowValue" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/row_floor_ground" style="@style/SettingsRow">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical">
+                <TextView style="@style/SettingsRowTitle" android:text="@string/settings_floor_ground" />
+                <TextView android:id="@+id/val_floor_ground" style="@style/SettingsRowValue" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/row_floor_under" style="@style/SettingsRow">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical">
+                <TextView style="@style/SettingsRowTitle" android:text="@string/settings_floor_under" />
+                <TextView android:id="@+id/val_floor_under" style="@style/SettingsRowValue" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 3. 감지 안정화 설정 -->
+        <TextView style="@style/SettingsSectionHeader" android:text="@string/settings_section_stabilize" />
+
+        <LinearLayout android:id="@+id/row_stab_bt" style="@style/SettingsRow">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical">
+                <TextView style="@style/SettingsRowTitle" android:text="@string/settings_stab_bt" />
+                <TextView android:id="@+id/val_stab_bt" style="@style/SettingsRowValue" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/row_stab_wifi_con" style="@style/SettingsRow">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical">
+                <TextView style="@style/SettingsRowTitle" android:text="@string/settings_stab_wifi_connect" />
+                <TextView android:id="@+id/val_stab_wifi_con" style="@style/SettingsRowValue" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/row_stab_wifi_dis" style="@style/SettingsRow">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical">
+                <TextView style="@style/SettingsRowTitle" android:text="@string/settings_stab_wifi_disconnect" />
+                <TextView android:id="@+id/val_stab_wifi_dis" style="@style/SettingsRowValue" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/row_stab_gps_enter" style="@style/SettingsRow">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical">
+                <TextView style="@style/SettingsRowTitle" android:text="@string/settings_stab_gps_enter" />
+                <TextView android:id="@+id/val_stab_gps_enter" style="@style/SettingsRowValue" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/row_stab_gps_exit" style="@style/SettingsRow">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical">
+                <TextView style="@style/SettingsRowTitle" android:text="@string/settings_stab_gps_exit" />
+                <TextView android:id="@+id/val_stab_gps_exit" style="@style/SettingsRowValue" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 4. 권한 상태 -->
+        <TextView style="@style/SettingsSectionHeader" android:text="@string/settings_section_permissions" />
+
+        <LinearLayout style="@style/SettingsRow" android:background="@null">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" style="@style/SettingsRowTitle"
+                android:text="@string/settings_perm_bluetooth" />
+            <TextView android:id="@+id/val_perm_bt" android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceBodyMedium" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/SettingsRow" android:background="@null">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" style="@style/SettingsRowTitle"
+                android:text="@string/settings_perm_location" />
+            <TextView android:id="@+id/val_perm_loc" android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceBodyMedium" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/SettingsRow" android:background="@null">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" style="@style/SettingsRowTitle"
+                android:text="@string/settings_perm_bglocation" />
+            <TextView android:id="@+id/val_perm_bgloc" android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceBodyMedium" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/SettingsRow" android:background="@null">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" style="@style/SettingsRowTitle"
+                android:text="@string/settings_perm_notification" />
+            <TextView android:id="@+id/val_perm_noti" android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceBodyMedium" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/SettingsRow" android:background="@null">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" style="@style/SettingsRowTitle"
+                android:text="@string/settings_perm_wifi" />
+            <TextView android:id="@+id/val_perm_wifi" android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceBodyMedium" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/SettingsRow" android:background="@null">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" style="@style/SettingsRowTitle"
+                android:text="@string/settings_perm_battery" />
+            <TextView android:id="@+id/val_perm_battery" android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceBodyMedium" />
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:layout_marginTop="8dp">
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_request_perms"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:text="@string/settings_request_permissions" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_app_settings"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:text="@string/settings_open_app_settings" />
+        </LinearLayout>
+
+        <!-- 5. 백그라운드 감지 안정화 안내 -->
+        <TextView style="@style/SettingsSectionHeader" android:text="@string/settings_section_background" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:lineSpacingMultiplier="1.2"
+            android:text="@string/settings_background_guide"
+            android:textAppearance="?attr/textAppearanceBodyMedium" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_open_battery"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/settings_open_battery" />
+
+        <!-- 6. 데이터 관리 -->
+        <TextView style="@style/SettingsSectionHeader" android:text="@string/settings_section_data" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_delete_records"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/settings_delete_records" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_delete_photos"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/settings_delete_photos" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_reset_settings"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/settings_reset_settings" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_reset_all"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/settings_reset_all"
+            app:backgroundTint="?attr/colorError"
+            xmlns:app="http://schemas.android.com/apk/res-auto" />
+
+    </LinearLayout>
+
+</ScrollView>
