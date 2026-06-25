@@ -78,10 +78,6 @@ public class DbHelper extends SQLiteOpenHelper {
                 AppSettings.DEFAULT_WIFI_CONNECT_STABILIZE_SECONDS);
         v.put(DbContract.Settings.COL_WIFI_DISCONNECT_STABILIZE_SECONDS,
                 AppSettings.DEFAULT_WIFI_DISCONNECT_STABILIZE_SECONDS);
-        v.put(DbContract.Settings.COL_GPS_ENTER_STABILIZE_SECONDS,
-                AppSettings.DEFAULT_GPS_ENTER_STABILIZE_SECONDS);
-        v.put(DbContract.Settings.COL_GPS_EXIT_STABILIZE_SECONDS,
-                AppSettings.DEFAULT_GPS_EXIT_STABILIZE_SECONDS);
         v.put(DbContract.Settings.COL_IS_ONBOARDING_COMPLETED, 0);
         v.put(DbContract.Settings.COL_CREATED_AT, now);
         v.put(DbContract.Settings.COL_UPDATED_AT, now);
@@ -116,8 +112,6 @@ public class DbHelper extends SQLiteOpenHelper {
                     + DbContract.Settings.COL_BT_DISCONNECT_STABILIZE_SECONDS + " INTEGER, "
                     + DbContract.Settings.COL_WIFI_CONNECT_STABILIZE_SECONDS + " INTEGER, "
                     + DbContract.Settings.COL_WIFI_DISCONNECT_STABILIZE_SECONDS + " INTEGER, "
-                    + DbContract.Settings.COL_GPS_ENTER_STABILIZE_SECONDS + " INTEGER, "
-                    + DbContract.Settings.COL_GPS_EXIT_STABILIZE_SECONDS + " INTEGER, "
                     + DbContract.Settings.COL_IS_ONBOARDING_COMPLETED + " INTEGER, "
                     + DbContract.Settings.COL_CREATED_AT + " TEXT, "
                     + DbContract.Settings.COL_UPDATED_AT + " TEXT"

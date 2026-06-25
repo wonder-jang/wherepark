@@ -30,12 +30,14 @@ import com.wonder.wherepark.util.ParkingFormat;
 public final class NotificationHelper {
 
     private static final String CH_INPUT = "input_request";
-    private static final String CH_ONGOING = "ongoing_parking";
-    private static final String CH_AWAY = "away_reminder";
+    // v2: 상시 알림이 앱 아이콘 뱃지를 남기지 않도록 setShowBadge(false)로 재생성한 채널.
+    private static final String CH_ONGOING = "ongoing_parking_v2";
+    private static final String CH_ONGOING_LEGACY = "ongoing_parking";
+    // 더 이상 사용하지 않는 일회성 외출 알림 채널(외출 알림은 상시 FGS 알림 + 진동으로 대체됨).
+    private static final String CH_AWAY_LEGACY = "away_reminder";
 
     private static final int ID_INPUT = 1001;
     private static final int ID_ONGOING = 1002;
-    private static final int ID_AWAY = 1003;
 
     /** 포그라운드 서비스(감지 중/외부 주차 상시)용 알림 ID. */
     public static final int FGS_ID = 2001;
@@ -75,13 +77,12 @@ public final class NotificationHelper {
                 context.getString(R.string.noti_channel_input), NotificationManager.IMPORTANCE_HIGH);
         NotificationChannel ongoing = new NotificationChannel(CH_ONGOING,
                 context.getString(R.string.noti_channel_ongoing), NotificationManager.IMPORTANCE_LOW);
-        NotificationChannel away = new NotificationChannel(CH_AWAY,
-                context.getString(R.string.noti_channel_away), NotificationManager.IMPORTANCE_HIGH);
-        away.enableVibration(true);
-        away.setVibrationPattern(new long[]{0, 400, 200, 400});
+        ongoing.setShowBadge(false); // 상시 알림은 앱 아이콘 뱃지를 남기지 않음
         nm.createNotificationChannel(input);
         nm.createNotificationChannel(ongoing);
-        nm.createNotificationChannel(away);
+        // 더 이상 쓰지 않는 구버전 채널 제거(기존 설치 업그레이드 대응).
+        nm.deleteNotificationChannel(CH_ONGOING_LEGACY);
+        nm.deleteNotificationChannel(CH_AWAY_LEGACY);
     }
 
     // ----- 1) 입력 요청 알림 (§14.1) -----
@@ -122,22 +123,6 @@ public final class NotificationHelper {
 
     public static void cancelOngoingParking(@NonNull Context context) {
         NotificationManagerCompat.from(context).cancel(ID_ONGOING);
-    }
-
-    // ----- 3) 외출 시 알림 (§14.3) -----
-
-    public static void showAwayReminder(@NonNull Context context, @NonNull ParkingRecord record) {
-        ensureChannels(context);
-        NotificationCompat.Builder b = new NotificationCompat.Builder(context, CH_AWAY)
-                .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle(context.getString(R.string.noti_away_title))
-                .setContentText(ParkingFormat.summary(record))
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setVibrate(new long[]{0, 400, 200, 400})
-                .setAutoCancel(true)
-                .setContentIntent(parkingTabPendingIntent(context));
-        applyImageOrText(b, ParkingFormat.summary(record), record.photoPath);
-        notify(context, ID_AWAY, b);
     }
 
     /** 현재 주차/입력 관련 알림을 모두 제거(운행 전환·초기화·삭제·데이터 초기화 시). */

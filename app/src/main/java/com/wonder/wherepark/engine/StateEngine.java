@@ -1,10 +1,18 @@
 package com.wonder.wherepark.engine;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
+import android.location.Location;
+import android.media.AudioAttributes;
+import android.os.Build;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+import android.os.VibratorManager;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.wonder.wherepark.data.model.AppSettings;
 import com.wonder.wherepark.data.model.Enums.EventType;
 import com.wonder.wherepark.data.model.Enums.HomeStatus;
 import com.wonder.wherepark.data.model.Enums.LocationStatus;
@@ -12,9 +20,12 @@ import com.wonder.wherepark.data.model.Enums.ParkingStatus;
 import com.wonder.wherepark.data.model.ParkingRecord;
 import com.wonder.wherepark.data.model.ParkingState;
 import com.wonder.wherepark.data.repo.ParkingRepository;
+import com.wonder.wherepark.data.repo.SettingsRepository;
 import com.wonder.wherepark.data.repo.StateLogRepository;
 import com.wonder.wherepark.data.repo.StateRepository;
 import com.wonder.wherepark.notify.NotificationHelper;
+import com.wonder.wherepark.util.LocationOnceHelper;
+import com.wonder.wherepark.util.PermissionUtil;
 import com.wonder.wherepark.util.TimeUtil;
 
 /**
@@ -34,11 +45,13 @@ public class StateEngine {
     private final StateRepository stateRepo;
     private final ParkingRepository parkingRepo;
     private final StateLogRepository logRepo;
+    private final SettingsRepository settingsRepo;
     @Nullable
     private final Listener listener;
 
     public StateEngine(@NonNull Context context, @Nullable Listener listener) {
         this.context = context.getApplicationContext();
+        this.settingsRepo = new SettingsRepository(this.context);
         this.stateRepo = new StateRepository(this.context);
         this.parkingRepo = new ParkingRepository(this.context);
         this.logRepo = new StateLogRepository(this.context);
@@ -70,6 +83,10 @@ public class StateEngine {
         st.lastBtStatus = "DISCONNECTED";
         stateRepo.update(st);
         enterParked(EventType.PARKING_DETECTED, stabilizeSeconds);
+        // §5.3 집 Wi-Fi로 집(HOME) 확정이 안 된 경우, 마지막 GPS로 집 반경 여부를 1회 보완 판정한다.
+        if (st.homeStatus != HomeStatus.HOME) {
+            judgeHomeByGpsOnce();
+        }
     }
 
     // ----- 집 Wi-Fi (§11) -----
@@ -99,32 +116,49 @@ public class StateEngine {
         stateRepo.update(st);
         logRepo.append(EventType.WIFI_DISCONNECTED, null, HomeStatus.AWAY.name(), true, stabilizeSeconds);
 
-        if (st.parkingStatus == ParkingStatus.PARKED) {
-            ParkingRecord current = parkingRepo.getCurrent();
-            if (current != null) {
-                NotificationHelper.showAwayReminder(context, current);
-            }
+        // 먼저 알림을 갱신해 서비스를 포그라운드로 복귀시킨 뒤 진동한다(백그라운드 진동 억제 방지).
+        notifyChanged();
+        if (st.parkingStatus == ParkingStatus.PARKED && parkingRepo.getCurrent() != null) {
+            // §14.3 외출 시 진동으로 알린다. 주차 위치는 상시(FGS) 알림이 표시한다.
+            vibrateAwayAlert();
         }
-        notifyChanged();
     }
 
-    // ----- GPS (§5.3 보조) -----
+    // ----- GPS 집 반경 1회 판정 (§5.3 보조, 상시 폴링 대체) -----
 
-    public void confirmGpsNearHome(int stabilizeSeconds) {
-        updateLocationStatus(LocationStatus.NEAR_HOME, EventType.GPS_NEAR_HOME, stabilizeSeconds);
-    }
-
-    public void confirmGpsOutside(int stabilizeSeconds) {
-        updateLocationStatus(LocationStatus.OUTSIDE, EventType.GPS_OUTSIDE, stabilizeSeconds);
-    }
-
-    private void updateLocationStatus(LocationStatus status, String eventType, int sec) {
-        ParkingState st = stateRepo.get();
-        st.locationStatus = status;
-        st.lastGpsStatus = status.name();
-        stateRepo.update(st);
-        logRepo.append(eventType, null, status.name(), true, sec);
-        notifyChanged();
+    /**
+     * 주차 확정 시점에 1회성으로 위치를 받아 집 반경 이내면 HOME, 아니면 AWAY로 보완한다.
+     * 집 Wi-Fi가 연결되지 않은 상황에서도 집 주차를 집으로 인식하기 위한 fallback(§5.3).
+     * 상시 GPS 폴링을 하지 않으므로 배터리 부담이 거의 없다(최근 위치 우선, 없을 때만 1회 fix).
+     */
+    @SuppressLint("MissingPermission")
+    private void judgeHomeByGpsOnce() {
+        AppSettings s = settingsRepo.get();
+        if (!s.hasHomeLocation()
+                || PermissionUtil.location(context) != PermissionUtil.Status.GRANTED) {
+            return;
+        }
+        LocationOnceHelper.requestOnce(context, location -> {
+            if (location == null) {
+                return;
+            }
+            ParkingState cur = stateRepo.get();
+            // 판정이 도착했을 때 여전히 주차 중이고, Wi-Fi로 이미 집 확정이 안 된 경우에만 반영
+            if (cur.parkingStatus != ParkingStatus.PARKED || cur.homeStatus == HomeStatus.HOME) {
+                return;
+            }
+            float[] out = new float[1];
+            Location.distanceBetween(location.getLatitude(), location.getLongitude(),
+                    s.homeLatitude, s.homeLongitude, out);
+            boolean nearHome = out[0] <= s.homeRadiusMeters;
+            cur.homeStatus = nearHome ? HomeStatus.HOME : HomeStatus.AWAY;
+            cur.locationStatus = nearHome ? LocationStatus.NEAR_HOME : LocationStatus.OUTSIDE;
+            cur.lastGpsStatus = cur.locationStatus.name();
+            stateRepo.update(cur);
+            logRepo.append(nearHome ? EventType.GPS_NEAR_HOME : EventType.GPS_OUTSIDE,
+                    null, cur.homeStatus.name(), true, 0);
+            notifyChanged(); // 집이면 재택으로 알림 숨김, 외부면 위치 표시 갱신
+        });
     }
 
     // ----- 공통 -----
@@ -144,6 +178,27 @@ public class StateEngine {
 
         NotificationHelper.showInputRequest(context); // §10.1 주차 위치 입력 요청
         notifyChanged();
+    }
+
+    /** §14.3 외출 알림 진동(상시 알림은 LOW 채널이라 소리/진동이 없으므로 직접 진동). */
+    private void vibrateAwayAlert() {
+        Vibrator vibrator;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            VibratorManager vm = (VibratorManager) context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
+            vibrator = vm != null ? vm.getDefaultVibrator() : null;
+        } else {
+            vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
+        }
+        if (vibrator == null || !vibrator.hasVibrator()) {
+            return;
+        }
+        VibrationEffect effect = VibrationEffect.createWaveform(new long[]{0, 400, 200, 400}, -1);
+        // 알림용 usage를 명시해야 화면 꺼짐/백그라운드에서도 진동이 무시되지 않는다.
+        AudioAttributes attrs = new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build();
+        vibrator.vibrate(effect, attrs);
     }
 
     private void notifyChanged() {

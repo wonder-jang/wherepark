@@ -25,7 +25,8 @@
         <!-- 2. 집 설정 -->
         <TextView style="@style/SettingsSectionHeader" android:text="@string/settings_section_home" />
 
-        <LinearLayout style="@style/SettingsRow" android:background="@null">
+        <LinearLayout android:id="@+id/row_home_wifi" style="@style/SettingsRow"
+            android:clickable="true" android:focusable="true">
             <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
                 android:layout_weight="1" android:orientation="vertical">
                 <TextView style="@style/SettingsRowTitle" android:text="@string/settings_home_wifi" />
@@ -101,22 +102,6 @@
                 android:layout_weight="1" android:orientation="vertical">
                 <TextView style="@style/SettingsRowTitle" android:text="@string/settings_stab_wifi_disconnect" />
                 <TextView android:id="@+id/val_stab_wifi_dis" style="@style/SettingsRowValue" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <LinearLayout android:id="@+id/row_stab_gps_enter" style="@style/SettingsRow">
-            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" android:orientation="vertical">
-                <TextView style="@style/SettingsRowTitle" android:text="@string/settings_stab_gps_enter" />
-                <TextView android:id="@+id/val_stab_gps_enter" style="@style/SettingsRowValue" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <LinearLayout android:id="@+id/row_stab_gps_exit" style="@style/SettingsRow">
-            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" android:orientation="vertical">
-                <TextView style="@style/SettingsRowTitle" android:text="@string/settings_stab_gps_exit" />
-                <TextView android:id="@+id/val_stab_gps_exit" style="@style/SettingsRowValue" />
             </LinearLayout>
         </LinearLayout>
 

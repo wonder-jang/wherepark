@@ -7,7 +7,17 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:padding="16dp">
+
+        <com.google.android.material.card.MaterialCardView
+            style="@style/WhereParkCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
         <!-- 현재 상태 -->
         <TextView
@@ -124,6 +134,9 @@
                 android:text="@string/parking_clear"
                 android:visibility="gone" />
         </LinearLayout>
+
+        </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
 
     </LinearLayout>
 

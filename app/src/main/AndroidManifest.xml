@@ -17,6 +17,8 @@
 
     <!-- 입력 요청/상시/외출 알림 (§7,§14). API 33+ 런타임 권한 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 외출(집 Wi-Fi 해제) 시 진동 알림 (§14.3) -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- 집 Wi-Fi SSID 판단 (§7,§8.2.1) -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />

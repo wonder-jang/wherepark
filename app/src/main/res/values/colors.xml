@@ -1,6 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- 주차 표지판 블루 계열 (Material3 라이트 스킴) -->
     <color name="brand_primary">#1565C0</color>
+    <color name="brand_on_primary">#FFFFFF</color>
+    <color name="brand_primary_container">#D6E3FF</color>
+    <color name="brand_on_primary_container">#001B3F</color>
+
+    <color name="brand_secondary">#3D6098</color>
+    <color name="brand_on_secondary">#FFFFFF</color>
+    <color name="brand_secondary_container">#DBE6FB</color>
+    <color name="brand_on_secondary_container">#0E2A4D</color>
+
+    <!-- 부드러운 블루-화이트 배경 / 표면 -->
+    <color name="app_background">#F2F6FC</color>
+    <color name="app_surface">#FFFFFF</color>
+    <color name="app_surface_variant">#DEE5F2</color>
+    <color name="app_on_surface">#1A1C1E</color>
+    <color name="app_on_surface_variant">#434750</color>
+    <color name="app_outline">#C4CCDA</color>
+    <color name="app_outline_variant">#E3E8F1</color>
+
+    <!-- surface container 계열(바텀내비/다이얼로그/메뉴 배경). 기본 라벤더 톤 대신 블루-화이트 -->
+    <color name="app_surface_container_lowest">#FFFFFF</color>
+    <color name="app_surface_container_low">#F4F8FD</color>
+    <color name="app_surface_container">#EBF1F9</color>
+    <color name="app_surface_container_high">#E5ECF6</color>
+    <color name="app_surface_container_highest">#DFE7F2</color>
+
     <color name="white">#FFFFFFFF</color>
     <color name="black">#FF000000</color>
 </resources>

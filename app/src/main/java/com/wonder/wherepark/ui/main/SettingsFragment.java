@@ -13,6 +13,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -52,9 +53,8 @@ import java.util.Set;
 public class SettingsFragment extends Fragment {
 
     // §6.3 안정화 선택 가능값
-    private static final int[] STAB_BT = {0, 10, 30, 60, 120};
-    private static final int[] STAB_WIFI = {0, 5, 10, 30, 60};
-    private static final int[] STAB_GPS = {0, 10, 30, 60, 120};
+    private static final int[] STAB_BT = {0, 5, 10, 30, 60, 120, 300};
+    private static final int[] STAB_WIFI = {0, 5, 10, 30, 60, 120, 300};
     // §8.2.3 집 위치 반경 선택값
     private static final int[] RADIUS = {50, 100, 200, 300};
 
@@ -114,6 +114,7 @@ public class SettingsFragment extends Fragment {
 
         // 집 설정
         view.findViewById(R.id.btn_save_wifi).setOnClickListener(v -> onSaveWifiClicked());
+        view.findViewById(R.id.row_home_wifi).setOnClickListener(v -> onManageWifiClicked());
         view.findViewById(R.id.btn_save_location).setOnClickListener(v -> onSaveLocationClicked());
         view.findViewById(R.id.row_home_radius).setOnClickListener(v -> onRadiusClicked());
         view.findViewById(R.id.row_floor_under).setOnClickListener(v -> onFloorClicked(true));
@@ -126,10 +127,6 @@ public class SettingsFragment extends Fragment {
                 onStabClicked(R.string.settings_stab_wifi_connect, STAB_WIFI, Field.WIFI_CON));
         view.findViewById(R.id.row_stab_wifi_dis).setOnClickListener(v ->
                 onStabClicked(R.string.settings_stab_wifi_disconnect, STAB_WIFI, Field.WIFI_DIS));
-        view.findViewById(R.id.row_stab_gps_enter).setOnClickListener(v ->
-                onStabClicked(R.string.settings_stab_gps_enter, STAB_GPS, Field.GPS_ENTER));
-        view.findViewById(R.id.row_stab_gps_exit).setOnClickListener(v ->
-                onStabClicked(R.string.settings_stab_gps_exit, STAB_GPS, Field.GPS_EXIT));
 
         // 권한 상태
         view.findViewById(R.id.btn_request_perms).setOnClickListener(v -> requestAllPermissions());
@@ -163,7 +160,7 @@ public class SettingsFragment extends Fragment {
         String notSet = getString(R.string.settings_not_set);
 
         text(R.id.val_vehicle_bt, s.vehicleBtName != null ? s.vehicleBtName : notSet);
-        text(R.id.val_home_wifi, s.homeWifiSsid != null ? s.homeWifiSsid : notSet);
+        text(R.id.val_home_wifi, s.hasHomeWifi() ? TextUtils.join(", ", s.homeWifiSsids) : notSet);
         text(R.id.val_home_location, s.hasHomeLocation()
                 ? String.format("%.5f, %.5f", s.homeLatitude, s.homeLongitude) : notSet);
         text(R.id.val_home_radius, s.homeRadiusMeters + "m");
@@ -173,8 +170,6 @@ public class SettingsFragment extends Fragment {
         text(R.id.val_stab_bt, s.btDisconnectStabilizeSeconds + "초");
         text(R.id.val_stab_wifi_con, s.wifiConnectStabilizeSeconds + "초");
         text(R.id.val_stab_wifi_dis, s.wifiDisconnectStabilizeSeconds + "초");
-        text(R.id.val_stab_gps_enter, s.gpsEnterStabilizeSeconds + "초");
-        text(R.id.val_stab_gps_exit, s.gpsExitStabilizeSeconds + "초");
 
         Context ctx = requireContext();
         status(R.id.val_perm_bt, PermissionUtil.bluetooth(ctx));
@@ -269,6 +264,7 @@ public class SettingsFragment extends Fragment {
 
     // ----- 집 설정 (§8.2) -----
 
+    /** 현재 연결된 Wi-Fi를 집 Wi-Fi 목록에 추가(중복은 무시). */
     private void onSaveWifiClicked() {
         String ssid = WifiHelper.getCurrentSsid(requireContext());
         if (ssid == null) {
@@ -276,10 +272,43 @@ public class SettingsFragment extends Fragment {
             return;
         }
         AppSettings s = settingsRepo.get();
-        s.homeWifiSsid = ssid;
+        if (s.homeWifiSsids.contains(ssid)) {
+            toast(R.string.settings_wifi_already);
+            return;
+        }
+        s.homeWifiSsids.add(ssid);
         settingsRepo.update(s);
         refreshDisplay();
         toast(R.string.settings_done);
+    }
+
+    /** 등록된 집 Wi-Fi 목록을 띄우고 탭한 항목을 삭제할 수 있게 한다. */
+    private void onManageWifiClicked() {
+        AppSettings s = settingsRepo.get();
+        if (!s.hasHomeWifi()) {
+            toast(R.string.settings_wifi_none);
+            return;
+        }
+        final List<String> ssids = new ArrayList<>(s.homeWifiSsids);
+        new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.settings_wifi_manage_title)
+                .setItems(ssids.toArray(new String[0]),
+                        (d, which) -> confirmRemoveWifi(ssids.get(which)))
+                .setNegativeButton(R.string.settings_cancel, null)
+                .show();
+    }
+
+    private void confirmRemoveWifi(String ssid) {
+        new AlertDialog.Builder(requireContext())
+                .setMessage(getString(R.string.settings_wifi_remove_confirm, ssid))
+                .setPositiveButton(R.string.settings_confirm, (d, w) -> {
+                    AppSettings s = settingsRepo.get();
+                    s.homeWifiSsids.remove(ssid);
+                    settingsRepo.update(s);
+                    refreshDisplay();
+                })
+                .setNegativeButton(R.string.settings_cancel, null)
+                .show();
     }
 
     private void onSaveLocationClicked() {
@@ -390,7 +419,7 @@ public class SettingsFragment extends Fragment {
 
     // ----- 감지 안정화 (§8.3) -----
 
-    private enum Field {BT, WIFI_CON, WIFI_DIS, GPS_ENTER, GPS_EXIT}
+    private enum Field {BT, WIFI_CON, WIFI_DIS}
 
     private void onStabClicked(int titleRes, int[] values, Field field) {
         AppSettings s = settingsRepo.get();
@@ -415,9 +444,7 @@ public class SettingsFragment extends Fragment {
         switch (f) {
             case BT: return s.btDisconnectStabilizeSeconds;
             case WIFI_CON: return s.wifiConnectStabilizeSeconds;
-            case WIFI_DIS: return s.wifiDisconnectStabilizeSeconds;
-            case GPS_ENTER: return s.gpsEnterStabilizeSeconds;
-            default: return s.gpsExitStabilizeSeconds;
+            default: return s.wifiDisconnectStabilizeSeconds; // WIFI_DIS
         }
     }
 
@@ -425,9 +452,7 @@ public class SettingsFragment extends Fragment {
         switch (f) {
             case BT: s.btDisconnectStabilizeSeconds = value; break;
             case WIFI_CON: s.wifiConnectStabilizeSeconds = value; break;
-            case WIFI_DIS: s.wifiDisconnectStabilizeSeconds = value; break;
-            case GPS_ENTER: s.gpsEnterStabilizeSeconds = value; break;
-            default: s.gpsExitStabilizeSeconds = value; break;
+            default: s.wifiDisconnectStabilizeSeconds = value; break; // WIFI_DIS
         }
     }
 

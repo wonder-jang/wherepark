@@ -82,7 +82,6 @@ public class ParkingInputActivity extends AppCompatActivity {
     private Uri captureUri;
 
     private ActivityResultLauncher<Uri> takePictureLauncher;
-    private ActivityResultLauncher<String> pickPhotoLauncher;
     private ActivityResultLauncher<Intent> drawLauncher;
 
     @Override
@@ -114,7 +113,6 @@ public class ParkingInputActivity extends AppCompatActivity {
         });
 
         binding.btnTakePhoto.setOnClickListener(v -> launchCamera());
-        binding.btnPickPhoto.setOnClickListener(v -> pickPhotoLauncher.launch("image/*"));
         binding.btnDraw.setOnClickListener(v ->
                 drawLauncher.launch(new Intent(this, DrawActivity.class)));
         binding.btnRemovePhoto.setOnClickListener(v -> removePhoto());
@@ -135,12 +133,6 @@ public class ParkingInputActivity extends AppCompatActivity {
                         compressAndSet(captureUri, captureTempFile);
                     } else {
                         deleteTempCapture();
-                    }
-                });
-        pickPhotoLauncher = registerForActivityResult(
-                new ActivityResultContracts.GetContent(), uri -> {
-                    if (uri != null) {
-                        compressAndSet(uri, null);
                     }
                 });
         drawLauncher = registerForActivityResult(
@@ -239,9 +231,9 @@ public class ParkingInputActivity extends AppCompatActivity {
 
     /** §9.6 수동 저장 시 집/외부 기본 판단: 집 Wi-Fi 일치 또는 집 반경 이내면 집. */
     private ParkingPlaceType judgeDefaultPlace(AppSettings s) {
-        if (s.homeWifiSsid != null) {
+        if (s.hasHomeWifi()) {
             String cur = WifiHelper.getCurrentSsid(this);
-            if (cur != null && cur.equals(s.homeWifiSsid)) {
+            if (s.matchesHomeWifi(cur)) {
                 return ParkingPlaceType.HOME;
             }
         }

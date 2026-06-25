@@ -1,7 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="Theme.WherePark" parent="Theme.Material3.DayNight.NoActionBar">
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.WherePark" parent="Theme.Material3.Light.NoActionBar">
+        <!-- 주차 표지판 블루 -->
         <item name="colorPrimary">@color/brand_primary</item>
+        <item name="colorOnPrimary">@color/brand_on_primary</item>
+        <item name="colorPrimaryContainer">@color/brand_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/brand_on_primary_container</item>
+        <item name="colorSecondary">@color/brand_secondary</item>
+        <item name="colorOnSecondary">@color/brand_on_secondary</item>
+        <item name="colorSecondaryContainer">@color/brand_secondary_container</item>
+        <item name="colorOnSecondaryContainer">@color/brand_on_secondary_container</item>
+
+        <!-- 부드러운 블루-화이트 배경/표면 -->
+        <item name="android:colorBackground">@color/app_background</item>
+        <item name="android:windowBackground">@color/app_background</item>
+        <item name="colorSurface">@color/app_surface</item>
+        <item name="colorSurfaceVariant">@color/app_surface_variant</item>
+        <item name="colorOnSurface">@color/app_on_surface</item>
+        <item name="colorOnSurfaceVariant">@color/app_on_surface_variant</item>
+        <item name="colorOutline">@color/app_outline</item>
+        <item name="colorOutlineVariant">@color/app_outline_variant</item>
+
+        <!-- surface container(바텀내비/다이얼로그/메뉴 배경): 기본 라벤더 톤 제거 -->
+        <item name="colorSurfaceContainerLowest">@color/app_surface_container_lowest</item>
+        <item name="colorSurfaceContainerLow">@color/app_surface_container_low</item>
+        <item name="colorSurfaceContainer">@color/app_surface_container</item>
+        <item name="colorSurfaceContainerHigh">@color/app_surface_container_high</item>
+        <item name="colorSurfaceContainerHighest">@color/app_surface_container_highest</item>
+
+        <!-- 시스템 바: 밝은 배경 + 어두운 아이콘 -->
+        <item name="android:statusBarColor">@color/app_background</item>
+        <item name="android:navigationBarColor">@color/app_surface</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
+
+        <!-- 부드러운 라운드 코너 (버튼/카드/다이얼로그) -->
+        <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.WherePark.Small</item>
+        <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.WherePark.Medium</item>
+        <item name="shapeAppearanceLargeComponent">@style/ShapeAppearance.WherePark.Large</item>
+    </style>
+
+    <style name="ShapeAppearance.WherePark.Small" parent="ShapeAppearance.Material3.SmallComponent">
+        <item name="cornerSize">14dp</item>
+    </style>
+
+    <style name="ShapeAppearance.WherePark.Medium" parent="ShapeAppearance.Material3.MediumComponent">
+        <item name="cornerSize">22dp</item>
+    </style>
+
+    <style name="ShapeAppearance.WherePark.Large" parent="ShapeAppearance.Material3.LargeComponent">
+        <item name="cornerSize">28dp</item>
+    </style>
+
+    <!-- 메인 카드: 부드러운 라운드 + 옅은 보더 -->
+    <style name="WhereParkCard" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardCornerRadius">24dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="cardBackgroundColor">@color/app_surface</item>
+        <item name="strokeColor">@color/app_outline_variant</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="contentPadding">20dp</item>
     </style>
 
     <!-- 온보딩 권한 안내 한 줄 -->

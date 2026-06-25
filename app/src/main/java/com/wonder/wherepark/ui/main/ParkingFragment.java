@@ -17,6 +17,8 @@ import androidx.fragment.app.Fragment;
 import com.wonder.wherepark.R;
 import com.wonder.wherepark.data.model.AppSettings;
 import com.wonder.wherepark.data.model.Enums.EventType;
+import com.wonder.wherepark.data.model.Enums.HomeStatus;
+import com.wonder.wherepark.data.model.Enums.ParkingPlaceType;
 import com.wonder.wherepark.data.model.Enums.ParkingStatus;
 import com.wonder.wherepark.data.model.ParkingRecord;
 import com.wonder.wherepark.data.model.ParkingState;
@@ -115,8 +117,8 @@ public class ParkingFragment extends Fragment {
             binding.txtLocation.setText(R.string.parking_driving);
             show(binding.btnManualSave);
         } else if (current != null) {
-            // 주차 + 위치 입력됨 (§9.2)
-            binding.txtStatus.setText(R.string.parking_parked);
+            // 주차 + 위치 입력됨 (§9.2) — 입력된 주차 구분(재택/외출)으로 표시
+            binding.txtStatus.setText(parkedStatusRes(current.parkingPlaceType == ParkingPlaceType.HOME));
             binding.txtLocation.setText(ParkingFormat.summary(current));
             showPhoto(current);
             show(binding.btnEdit);
@@ -129,8 +131,8 @@ public class ParkingFragment extends Fragment {
             binding.btnEdit.setOnClickListener(v -> openInput(current.id));
             binding.btnClear.setOnClickListener(v -> confirmClear());
         } else if (state.parkingStatus == ParkingStatus.PARKED) {
-            // 주차 + 위치 미입력 (§9.2, §10.2)
-            binding.txtStatus.setText(R.string.parking_parked);
+            // 주차 + 위치 미입력 (§9.2, §10.2) — 레코드가 없으므로 집 상태(재택/외출)로 구분
+            binding.txtStatus.setText(parkedStatusRes(state.homeStatus == HomeStatus.HOME));
             binding.txtLocation.setText(R.string.parking_no_location);
             show(binding.btnInput);
             show(binding.btnClear);
@@ -141,6 +143,11 @@ public class ParkingFragment extends Fragment {
             binding.txtLocation.setText(R.string.parking_none);
             show(binding.btnManualSave);
         }
+    }
+
+    /** 주차 상태 문구: 집(재택)이면 "주차 (재택)", 아니면 "주차 (외출)". */
+    private int parkedStatusRes(boolean atHome) {
+        return atHome ? R.string.parking_parked_home : R.string.parking_parked_outside;
     }
 
     private void showPhoto(ParkingRecord r) {

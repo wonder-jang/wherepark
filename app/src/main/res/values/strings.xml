@@ -35,14 +35,16 @@
     <string name="settings_floor_ground">집 주차장 지상 층수</string>
     <string name="settings_floor_none">없음</string>
     <string name="settings_floor_both_none">지상과 지하 층수를 모두 \'없음\'으로 설정할 수 없습니다.</string>
-    <string name="settings_save_current_wifi">현재 Wi-Fi 저장</string>
+    <string name="settings_save_current_wifi">현재 Wi-Fi 추가</string>
+    <string name="settings_wifi_already">이미 등록된 Wi-Fi입니다.</string>
+    <string name="settings_wifi_none">등록된 집 Wi-Fi가 없습니다.</string>
+    <string name="settings_wifi_manage_title">집 Wi-Fi 삭제 (탭하여 삭제)</string>
+    <string name="settings_wifi_remove_confirm">\'%1$s\'을(를) 집 Wi-Fi에서 삭제할까요?</string>
     <string name="settings_save_current_location">현재 위치 저장</string>
 
     <string name="settings_stab_bt">차량 BT 해제 후 주차 확정</string>
     <string name="settings_stab_wifi_connect">집 Wi-Fi 연결 후 귀가 확정</string>
     <string name="settings_stab_wifi_disconnect">집 Wi-Fi 해제 후 외출 확정</string>
-    <string name="settings_stab_gps_enter">GPS 집근처 진입 확정</string>
-    <string name="settings_stab_gps_exit">GPS 집근처 이탈 확정</string>
 
     <string name="settings_perm_bluetooth">Bluetooth 권한</string>
     <string name="settings_perm_location">위치 권한</string>
@@ -88,7 +90,6 @@
     <string name="input_memo_hint">추가 위치 정보 (예: 103동 엘리베이터 앞)</string>
     <string name="input_photo">사진</string>
     <string name="input_take_photo">촬영</string>
-    <string name="input_pick_photo">갤러리</string>
     <string name="input_draw">그리기</string>
     <string name="input_remove_photo">사진 삭제</string>
 
@@ -121,6 +122,8 @@
     <string name="parking_clear_confirm">현재 주차 정보를 삭제할까요?</string>
     <string name="parking_status_label">현재 상태</string>
     <string name="parking_parked">주차</string>
+    <string name="parking_parked_home">주차 (재택)</string>
+    <string name="parking_parked_outside">주차 (외출)</string>
 
     <!-- 주차 이력 탭 (§13) -->
     <string name="history_search_hint">주차 이력 검색</string>
@@ -161,6 +164,7 @@
     <string name="noti_ongoing_title">주차 위치</string>
     <string name="noti_away_title">주차 위치를 확인하세요</string>
     <string name="noti_fgs_detecting">주차 자동 감지 중</string>
+    <string name="noti_fgs_at_home">재택 중 · 주차 자동 감지</string>
     <string name="noti_fgs_driving">운행 중</string>
     <string name="noti_fgs_parked_waiting">주차됨 · 위치 입력 대기</string>
 </resources>

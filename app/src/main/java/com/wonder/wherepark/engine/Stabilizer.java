@@ -19,7 +19,6 @@ public class Stabilizer {
     /** 안정화 채널. 같은 채널의 새 스케줄은 이전 것을 대체(취소)한다. */
     public static final String CH_BT = "BT";
     public static final String CH_WIFI = "WIFI";
-    public static final String CH_GPS = "GPS";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Map<String, Runnable> pending = new HashMap<>();

@@ -9,9 +9,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
-import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -21,12 +18,12 @@ import android.os.IBinder;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.app.NotificationManagerCompat;
 import androidx.core.app.ServiceCompat;
 import androidx.core.content.ContextCompat;
 
 import com.wonder.wherepark.R;
 import com.wonder.wherepark.data.model.AppSettings;
+import com.wonder.wherepark.data.model.Enums.HomeStatus;
 import com.wonder.wherepark.data.model.Enums.ParkingStatus;
 import com.wonder.wherepark.data.model.ParkingRecord;
 import com.wonder.wherepark.data.model.ParkingState;
@@ -49,8 +46,6 @@ import com.wonder.wherepark.util.WifiHelper;
 public class DetectionService extends Service implements StateEngine.Listener {
 
     private static final String ACTION_REFRESH = "com.wonder.wherepark.action.REFRESH";
-    private static final long LOC_INTERVAL_MS = 30_000L;
-    private static final float LOC_MIN_DISTANCE_M = 20f;
 
     private SettingsRepository settingsRepo;
     private StateRepository stateRepo;
@@ -61,16 +56,11 @@ public class DetectionService extends Service implements StateEngine.Listener {
     private ConnectivityManager connectivityManager;
     @Nullable
     private ConnectivityManager.NetworkCallback wifiCallback;
-    @Nullable
-    private LocationManager locationManager;
-    private boolean locationUpdatesActive = false;
     private boolean started = false;
 
     // 전이 판단용 baseline (null = 아직 관측 전, 시드만 하고 전이 없음)
     @Nullable
     private volatile Boolean lastWifiHome = null;
-    @Nullable
-    private volatile Boolean lastNearHome = null;
 
     // ----- 외부 진입점 -----
 
@@ -107,7 +97,6 @@ public class DetectionService extends Service implements StateEngine.Listener {
         stabilizer = new Stabilizer();
         engine = new StateEngine(this, this);
         connectivityManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-        locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
     }
 
     @Override
@@ -129,8 +118,9 @@ public class DetectionService extends Service implements StateEngine.Listener {
             started = true;
             registerBtReceiver();
             registerWifiCallback();
-            startLocationUpdates();
         }
+        // 재택 중 주차면 방금 띄운 알림을 즉시 내려 상시 알림을 등록하지 않는다.
+        applyForegroundState();
         return START_STICKY;
     }
 
@@ -149,12 +139,6 @@ public class DetectionService extends Service implements StateEngine.Listener {
             } catch (Exception ignored) {
             }
         }
-        if (locationUpdatesActive && locationManager != null) {
-            try {
-                locationManager.removeUpdates(locationListener);
-            } catch (Exception ignored) {
-            }
-        }
         if (stabilizer != null) {
             stabilizer.cancelAll();
         }
@@ -170,7 +154,34 @@ public class DetectionService extends Service implements StateEngine.Listener {
 
     @Override
     public void onStateChanged() {
-        NotificationManagerCompat.from(this).notify(NotificationHelper.FGS_ID, buildNotification());
+        applyForegroundState();
+    }
+
+    /**
+     * 현재 상태에 맞춰 FGS 상시 알림 표시 여부를 적용한다.
+     * 다음 경우에는 상시 알림을 아예 등록하지 않는다(서비스는 계속 동작하므로 감지/진동은 유지):
+     *  - §14.2 재택(집 Wi-Fi 연결) 중 주차 상태
+     *  - 운행 중(DRIVING)
+     * 그 외 상태에서는 알림을 갱신/표시한다.
+     */
+    private void applyForegroundState() {
+        ParkingState st = stateRepo.get();
+        boolean hideForHomeParked = st.parkingStatus == ParkingStatus.PARKED
+                && st.homeStatus == HomeStatus.HOME;
+        boolean hideForDriving = st.parkingStatus == ParkingStatus.DRIVING;
+        if (hideForHomeParked || hideForDriving) {
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
+            return;
+        }
+        int type = foregroundType();
+        if (type == 0) {
+            return;
+        }
+        try {
+            ServiceCompat.startForeground(this, NotificationHelper.FGS_ID, buildNotification(), type);
+        } catch (Exception ignored) {
+            // startForeground 제약 등으로 실패해도 서비스 자체는 유지
+        }
     }
 
     private Notification buildNotification() {
@@ -182,8 +193,12 @@ public class DetectionService extends Service implements StateEngine.Listener {
             text = getString(R.string.noti_fgs_driving);
         } else if (st.parkingStatus == ParkingStatus.PARKED) {
             ParkingRecord current = parkingRepo.getCurrent();
-            if (current != null) {
-                title = getString(R.string.noti_ongoing_title); // "주차 위치"
+            if (st.homeStatus == HomeStatus.HOME) {
+                // §14.2 재택(집 Wi-Fi 연결) 중에는 주차 위치 온고잉 표시를 하지 않음
+                text = getString(R.string.noti_fgs_at_home);
+            } else if (current != null) {
+                // §14.3 외출(집 Wi-Fi 해제 등) 중: 주차 위치 확인 알림을 상시 알림으로 표시
+                title = getString(R.string.noti_away_title); // "주차 위치를 확인하세요"
                 text = ParkingFormat.summary(current);
                 photoPath = current.photoPath; // 사진/그림을 알림에 함께 표시
             } else {
@@ -283,16 +298,16 @@ public class DetectionService extends Service implements StateEngine.Listener {
 
     private void evaluateWifi() {
         AppSettings s = settingsRepo.get();
-        if (s.homeWifiSsid == null) {
+        if (!s.hasHomeWifi()) {
             return; // 집 Wi-Fi 미설정 → Wi-Fi 판단 안 함
         }
         String ssid = WifiHelper.getCurrentSsid(this);
-        handleHomeWifi(ssid != null && ssid.equals(s.homeWifiSsid));
+        handleHomeWifi(s.matchesHomeWifi(ssid));
     }
 
     private void handleHomeWifi(boolean homeNow) {
         AppSettings s = settingsRepo.get();
-        if (s.homeWifiSsid == null) {
+        if (!s.hasHomeWifi()) {
             return;
         }
         if (lastWifiHome != null && lastWifiHome == homeNow) {
@@ -312,64 +327,5 @@ public class DetectionService extends Service implements StateEngine.Listener {
         }
     }
 
-    // ----- 집 반경 (GPS) -----
-
-    @SuppressLint("MissingPermission")
-    private void startLocationUpdates() {
-        AppSettings s = settingsRepo.get();
-        if (locationManager == null || !s.hasHomeLocation()
-                || PermissionUtil.location(this) != PermissionUtil.Status.GRANTED) {
-            return;
-        }
-        try {
-            if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,
-                        LOC_INTERVAL_MS, LOC_MIN_DISTANCE_M, locationListener);
-                locationUpdatesActive = true;
-            }
-            if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,
-                        LOC_INTERVAL_MS, LOC_MIN_DISTANCE_M, locationListener);
-                locationUpdatesActive = true;
-            }
-        } catch (SecurityException ignored) {
-        }
-    }
-
-    private final LocationListener locationListener = new LocationListener() {
-        @Override
-        public void onLocationChanged(@NonNull Location location) {
-            AppSettings s = settingsRepo.get();
-            if (!s.hasHomeLocation()) {
-                return;
-            }
-            float[] out = new float[1];
-            Location.distanceBetween(location.getLatitude(), location.getLongitude(),
-                    s.homeLatitude, s.homeLongitude, out);
-            boolean nearNow = out[0] <= s.homeRadiusMeters;
-            if (lastNearHome != null && lastNearHome == nearNow) {
-                return;
-            }
-            boolean firstObservation = (lastNearHome == null);
-            lastNearHome = nearNow;
-            if (firstObservation) {
-                return;
-            }
-            if (nearNow) {
-                int delay = s.gpsEnterStabilizeSeconds;
-                stabilizer.schedule(Stabilizer.CH_GPS, delay, () -> engine.confirmGpsNearHome(delay));
-            } else {
-                int delay = s.gpsExitStabilizeSeconds;
-                stabilizer.schedule(Stabilizer.CH_GPS, delay, () -> engine.confirmGpsOutside(delay));
-            }
-        }
-
-        @Override
-        public void onProviderEnabled(@NonNull String provider) {
-        }
-
-        @Override
-        public void onProviderDisabled(@NonNull String provider) {
-        }
-    };
+    // 집 반경(GPS) 판정은 상시 폴링하지 않고, 주차 확정 시점에 1회성으로 처리한다(StateEngine).
 }

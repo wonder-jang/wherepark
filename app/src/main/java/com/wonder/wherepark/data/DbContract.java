@@ -29,8 +29,6 @@ public final class DbContract {
         public static final String COL_BT_DISCONNECT_STABILIZE_SECONDS = "bt_disconnect_stabilize_seconds";
         public static final String COL_WIFI_CONNECT_STABILIZE_SECONDS = "wifi_connect_stabilize_seconds";
         public static final String COL_WIFI_DISCONNECT_STABILIZE_SECONDS = "wifi_disconnect_stabilize_seconds";
-        public static final String COL_GPS_ENTER_STABILIZE_SECONDS = "gps_enter_stabilize_seconds";
-        public static final String COL_GPS_EXIT_STABILIZE_SECONDS = "gps_exit_stabilize_seconds";
         public static final String COL_IS_ONBOARDING_COMPLETED = "is_onboarding_completed";
         public static final String COL_CREATED_AT = "created_at";
         public static final String COL_UPDATED_AT = "updated_at";
