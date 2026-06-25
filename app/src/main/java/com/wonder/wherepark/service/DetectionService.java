@@ -24,6 +24,7 @@ import androidx.core.content.ContextCompat;
 import com.wonder.wherepark.R;
 import com.wonder.wherepark.data.model.AppSettings;
 import com.wonder.wherepark.data.model.Enums.HomeStatus;
+import com.wonder.wherepark.data.model.Enums.ParkingPlaceType;
 import com.wonder.wherepark.data.model.Enums.ParkingStatus;
 import com.wonder.wherepark.data.model.ParkingRecord;
 import com.wonder.wherepark.data.model.ParkingState;
@@ -166,8 +167,12 @@ public class DetectionService extends Service implements StateEngine.Listener {
      */
     private void applyForegroundState() {
         ParkingState st = stateRepo.get();
+        ParkingRecord current = parkingRepo.getCurrent();
+        // 외부(OUTSIDE) 주차로 저장된 현재 기록이 있으면, 집 Wi-Fi 연결 중이어도 상시 알림을 표시한다.
+        boolean outsideParked = current != null && current.parkingPlaceType == ParkingPlaceType.OUTSIDE;
         boolean hideForHomeParked = st.parkingStatus == ParkingStatus.PARKED
-                && st.homeStatus == HomeStatus.HOME;
+                && st.homeStatus == HomeStatus.HOME
+                && !outsideParked;
         boolean hideForDriving = st.parkingStatus == ParkingStatus.DRIVING;
         if (hideForHomeParked || hideForDriving) {
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
@@ -193,14 +198,14 @@ public class DetectionService extends Service implements StateEngine.Listener {
             text = getString(R.string.noti_fgs_driving);
         } else if (st.parkingStatus == ParkingStatus.PARKED) {
             ParkingRecord current = parkingRepo.getCurrent();
-            if (st.homeStatus == HomeStatus.HOME) {
-                // §14.2 재택(집 Wi-Fi 연결) 중에는 주차 위치 온고잉 표시를 하지 않음
-                text = getString(R.string.noti_fgs_at_home);
-            } else if (current != null) {
-                // §14.3 외출(집 Wi-Fi 해제 등) 중: 주차 위치 확인 알림을 상시 알림으로 표시
-                title = getString(R.string.noti_away_title); // "주차 위치를 확인하세요"
+            if (current != null) {
+                // 위치가 저장된 주차(외부 주차/외출 등) → 주차 위치를 상시 알림으로 표시
+                title = getString(R.string.noti_away_title); // "주차 위치"
                 text = ParkingFormat.summary(current);
                 photoPath = current.photoPath; // 사진/그림을 알림에 함께 표시
+            } else if (st.homeStatus == HomeStatus.HOME) {
+                // §14.2 재택(집 Wi-Fi 연결) 중 위치 미입력 → 상시 알림 미표시(사실상 hide됨)
+                text = getString(R.string.noti_fgs_at_home);
             } else {
                 text = getString(R.string.noti_fgs_parked_waiting);
             }

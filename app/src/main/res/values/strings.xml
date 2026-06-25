@@ -162,7 +162,7 @@
     <string name="noti_input_title">주차 위치를 입력하세요</string>
     <string name="noti_input_body">주차가 감지되었습니다. 눌러서 위치를 입력하세요.</string>
     <string name="noti_ongoing_title">주차 위치</string>
-    <string name="noti_away_title">주차 위치를 확인하세요</string>
+    <string name="noti_away_title">주차 위치</string>
     <string name="noti_fgs_detecting">주차 자동 감지 중</string>
     <string name="noti_fgs_at_home">재택 중 · 주차 자동 감지</string>
     <string name="noti_fgs_driving">운행 중</string>
