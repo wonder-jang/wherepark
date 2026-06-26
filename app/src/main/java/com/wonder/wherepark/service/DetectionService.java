@@ -161,6 +161,7 @@ public class DetectionService extends Service implements StateEngine.Listener {
     /**
      * 현재 상태에 맞춰 FGS 상시 알림 표시 여부를 적용한다.
      * 다음 경우에는 상시 알림을 아예 등록하지 않는다(서비스는 계속 동작하므로 감지/진동은 유지):
+     *  - 위치 미입력 입력 대기 중(입력 요청 헤드업 알림이 단독으로 안내하므로 상시 알림과 겹치지 않게 함)
      *  - §14.2 재택(집 Wi-Fi 연결) 중 주차 상태
      *  - 운행 중(DRIVING)
      * 그 외 상태에서는 알림을 갱신/표시한다.
@@ -168,13 +169,15 @@ public class DetectionService extends Service implements StateEngine.Listener {
     private void applyForegroundState() {
         ParkingState st = stateRepo.get();
         ParkingRecord current = parkingRepo.getCurrent();
+        // 주차 확정 후 위치 미입력 대기 구간: 입력 요청 알림만 띄우고 상시 알림은 숨긴다(중복 방지).
+        boolean hideForInputWaiting = st.parkingStatus == ParkingStatus.PARKED && current == null;
         // 외부(OUTSIDE) 주차로 저장된 현재 기록이 있으면, 집 Wi-Fi 연결 중이어도 상시 알림을 표시한다.
         boolean outsideParked = current != null && current.parkingPlaceType == ParkingPlaceType.OUTSIDE;
         boolean hideForHomeParked = st.parkingStatus == ParkingStatus.PARKED
                 && st.homeStatus == HomeStatus.HOME
                 && !outsideParked;
         boolean hideForDriving = st.parkingStatus == ParkingStatus.DRIVING;
-        if (hideForHomeParked || hideForDriving) {
+        if (hideForInputWaiting || hideForHomeParked || hideForDriving) {
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
             return;
         }

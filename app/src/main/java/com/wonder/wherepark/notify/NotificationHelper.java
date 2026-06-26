@@ -29,7 +29,9 @@ import com.wonder.wherepark.util.ParkingFormat;
  */
 public final class NotificationHelper {
 
-    private static final String CH_INPUT = "input_request";
+    // v2: 진동을 켜기 위해 재생성한 채널(채널 설정은 생성 후 불변이라 ID를 올림).
+    private static final String CH_INPUT = "input_request_v2";
+    private static final String CH_INPUT_LEGACY = "input_request";
     // v2: 상시 알림이 앱 아이콘 뱃지를 남기지 않도록 setShowBadge(false)로 재생성한 채널.
     private static final String CH_ONGOING = "ongoing_parking_v2";
     private static final String CH_ONGOING_LEGACY = "ongoing_parking";
@@ -75,12 +77,15 @@ public final class NotificationHelper {
         }
         NotificationChannel input = new NotificationChannel(CH_INPUT,
                 context.getString(R.string.noti_channel_input), NotificationManager.IMPORTANCE_HIGH);
+        input.enableVibration(true); // 주차 입력 요청은 진동과 함께 헤드업으로 알림
+        input.setVibrationPattern(new long[]{0, 400, 200, 400});
         NotificationChannel ongoing = new NotificationChannel(CH_ONGOING,
                 context.getString(R.string.noti_channel_ongoing), NotificationManager.IMPORTANCE_LOW);
         ongoing.setShowBadge(false); // 상시 알림은 앱 아이콘 뱃지를 남기지 않음
         nm.createNotificationChannel(input);
         nm.createNotificationChannel(ongoing);
         // 더 이상 쓰지 않는 구버전 채널 제거(기존 설치 업그레이드 대응).
+        nm.deleteNotificationChannel(CH_INPUT_LEGACY);
         nm.deleteNotificationChannel(CH_ONGOING_LEGACY);
         nm.deleteNotificationChannel(CH_AWAY_LEGACY);
     }
