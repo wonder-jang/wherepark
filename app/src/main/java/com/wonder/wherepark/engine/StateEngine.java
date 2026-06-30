@@ -24,6 +24,7 @@ import com.wonder.wherepark.data.repo.SettingsRepository;
 import com.wonder.wherepark.data.repo.StateLogRepository;
 import com.wonder.wherepark.data.repo.StateRepository;
 import com.wonder.wherepark.notify.NotificationHelper;
+import com.wonder.wherepark.service.AutoCaptureLauncher;
 import com.wonder.wherepark.util.LocationOnceHelper;
 import com.wonder.wherepark.util.PermissionUtil;
 import com.wonder.wherepark.util.TimeUtil;
@@ -176,7 +177,17 @@ public class StateEngine {
         stateRepo.update(st);
         logRepo.append(eventType, prev, ParkingStatus.PARKED.name(), true, stabilizeSeconds);
 
-        NotificationHelper.showInputRequest(context); // §10.1 주차 위치 입력 요청
+        // §10.1 주차 위치 입력 요청.
+        boolean autoCapture = settingsRepo.get().autoPhotoAnalysisEnabled;
+        // 자동 사진 분석 + 오버레이 권한이 있으면 촬영 화면을 바로(또는 잠금 해제 시) 자동으로 띄운다.
+        AutoCaptureLauncher.Result auto = autoCapture
+                ? AutoCaptureLauncher.onParkingDetected(context)
+                : AutoCaptureLauncher.Result.NEEDS_NOTIFICATION;
+        // 지금 바로 촬영 화면을 띄운 경우(LAUNCHED_NOW)만 알림 생략.
+        // 그 외에는 입력요청 알림으로 안내(자동 모드면 풀스크린 인텐트라 잠금화면 위로 촬영 화면이 뜬다).
+        if (auto != AutoCaptureLauncher.Result.LAUNCHED_NOW) {
+            NotificationHelper.showInputRequest(context, autoCapture);
+        }
         notifyChanged();
     }
 

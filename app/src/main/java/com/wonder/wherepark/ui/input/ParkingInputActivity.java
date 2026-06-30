@@ -18,10 +18,11 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.FileProvider;
 
 import com.google.android.material.button.MaterialButtonToggleGroup;
+import com.wonder.wherepark.analyze.ParkingPhotoAnalyzer;
 import com.wonder.wherepark.data.model.AppSettings;
 import com.wonder.wherepark.data.model.Enums.EventType;
 import com.wonder.wherepark.data.model.Enums.ParkingLevelType;
@@ -38,6 +39,9 @@ import com.wonder.wherepark.databinding.ActivityParkingInputBinding;
 import com.wonder.wherepark.notify.NotificationHelper;
 import com.wonder.wherepark.photo.PhotoStore;
 import com.wonder.wherepark.service.DetectionService;
+import com.wonder.wherepark.ui.camera.CameraCaptureActivity;
+import com.wonder.wherepark.ui.photo.PhotoViewActivity;
+import com.wonder.wherepark.util.ColorMemo;
 import com.wonder.wherepark.util.LocationOnceHelper;
 import com.wonder.wherepark.util.ParkingFormat;
 import com.wonder.wherepark.util.TimeUtil;
@@ -57,6 +61,15 @@ public class ParkingInputActivity extends AppCompatActivity {
     /** 수정 모드 진입 시 전달할 주차 기록 id. 없으면 신규. */
     public static final String EXTRA_RECORD_ID = "record_id";
 
+    // 자동 촬영 분석 결과로 신규 입력 화면을 미리 채울 때 사용하는 extras(모두 선택).
+    public static final String EXTRA_PREFILL_PLACE = "prefill_place";        // ParkingPlaceType.name()
+    public static final String EXTRA_PREFILL_LEVEL = "prefill_level";        // ParkingLevelType.name()
+    public static final String EXTRA_PREFILL_FLOOR_LABEL = "prefill_floor";  // "B2F" 등
+    public static final String EXTRA_PREFILL_MEMO = "prefill_memo";
+    public static final String EXTRA_PREFILL_PHOTO = "prefill_photo";        // 이미 저장된 사진 경로
+    public static final String EXTRA_PREFILL_BG_RGB = "prefill_bg_rgb";      // 분석된 배경색(ARGB int)
+    public static final String EXTRA_PREFILL_TEXT_RGB = "prefill_text_rgb";  // 분석된 글자색(ARGB int)
+
     private ActivityParkingInputBinding binding;
 
     private SettingsRepository settingsRepo;
@@ -75,13 +88,14 @@ public class ParkingInputActivity extends AppCompatActivity {
     @Nullable
     private Location capturedLocation;      // 신규 저장용 GPS
     private boolean autoDetectedPark = false; // 진입 시 이미 PARKED면 자동 감지된 주차
-
     @Nullable
-    private File captureTempFile;
+    private String lastAnalysisMemo;          // 직전 사진 분석으로 메모에 넣은 문구(재촬영 시 교체용)
     @Nullable
-    private Uri captureUri;
+    private Integer pendingBgColor;           // 분석된 배경색(저장/스와치용)
+    @Nullable
+    private Integer pendingTextColor;         // 분석된 글자색
 
-    private ActivityResultLauncher<Uri> takePictureLauncher;
+    private ActivityResultLauncher<Intent> cameraLauncher;
     private ActivityResultLauncher<Intent> drawLauncher;
 
     @Override
@@ -115,6 +129,7 @@ public class ParkingInputActivity extends AppCompatActivity {
         binding.btnTakePhoto.setOnClickListener(v -> launchCamera());
         binding.btnDraw.setOnClickListener(v ->
                 drawLauncher.launch(new Intent(this, DrawActivity.class)));
+        binding.imgPreview.setOnClickListener(v -> PhotoViewActivity.open(this, pendingPhotoPath));
         binding.btnRemovePhoto.setOnClickListener(v -> removePhoto());
         binding.btnSave.setOnClickListener(v -> onSave());
         binding.btnCancel.setOnClickListener(v -> onCancel());
@@ -127,12 +142,14 @@ public class ParkingInputActivity extends AppCompatActivity {
     }
 
     private void registerPhotoLaunchers() {
-        takePictureLauncher = registerForActivityResult(
-                new ActivityResultContracts.TakePicture(), success -> {
-                    if (success && captureUri != null) {
-                        compressAndSet(captureUri, captureTempFile);
-                    } else {
-                        deleteTempCapture();
+        cameraLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(), result -> {
+                    String path = result.getResultCode() == RESULT_OK && result.getData() != null
+                            ? result.getData().getStringExtra(CameraCaptureActivity.EXTRA_RESULT_PATH)
+                            : null;
+                    if (path != null) {
+                        File f = new File(path);
+                        compressAndSet(Uri.fromFile(f), f);
                     }
                 });
         drawLauncher = registerForActivityResult(
@@ -158,6 +175,51 @@ public class ParkingInputActivity extends AppCompatActivity {
         updateLevelAvailability();
         refreshFloorOptions(false);
         captureLocationForSave(s);
+        applyPrefillIfPresent();
+    }
+
+    /** 자동 촬영 분석 결과(또는 다른 화면)에서 넘어온 프리필 값을 신규 입력 화면에 채운다. */
+    private void applyPrefillIfPresent() {
+        Intent in = getIntent();
+        String place = in.getStringExtra(EXTRA_PREFILL_PLACE);
+        String level = in.getStringExtra(EXTRA_PREFILL_LEVEL);
+        String floorLabel = in.getStringExtra(EXTRA_PREFILL_FLOOR_LABEL);
+        String memo = in.getStringExtra(EXTRA_PREFILL_MEMO);
+        String photo = in.getStringExtra(EXTRA_PREFILL_PHOTO);
+        boolean hasBg = in.hasExtra(EXTRA_PREFILL_BG_RGB);
+        boolean hasText = in.hasExtra(EXTRA_PREFILL_TEXT_RGB);
+        if (place == null && level == null && floorLabel == null && memo == null && photo == null
+                && !hasBg && !hasText) {
+            return;
+        }
+        if (place != null) {
+            checkPlace(ParkingPlaceType.fromDb(place));
+        }
+        updateLevelAvailability();
+        if (level != null) {
+            checkLevel(ParkingLevelType.fromDb(level));
+        }
+        refreshFloorOptions(true);
+        if (floorLabel != null) {
+            selectFloorLabel(floorLabel);
+        }
+        if (memo != null) {
+            binding.inputMemo.setText(memo);
+            lastAnalysisMemo = memo; // 자동 촬영 분석으로 채워진 메모 → 재촬영 시 교체 대상
+        }
+        if (hasBg) {
+            pendingBgColor = in.getIntExtra(EXTRA_PREFILL_BG_RGB, 0);
+        }
+        if (hasText) {
+            pendingTextColor = in.getIntExtra(EXTRA_PREFILL_TEXT_RGB, 0);
+        }
+        renderCombinedSwatch();
+        if (photo != null && new File(photo).exists()) {
+            // 이미 저장된 사진을 원본으로 취급해 저장/취소 시 임의 삭제되지 않게 한다.
+            originalPhotoPath = photo;
+            pendingPhotoPath = photo;
+            showPreviewFromPath(photo);
+        }
     }
 
     /** 집 주차의 기본 유형: 지하가 있으면 지하, 없으면 지상, 둘 다 없으면 기타. 외부는 지하. */
@@ -223,7 +285,10 @@ public class ParkingInputActivity extends AppCompatActivity {
         if (r.floorLabel != null) {
             selectFloorLabel(r.floorLabel);
         }
-        binding.inputMemo.setText(r.memo);
+        binding.inputMemo.setText(ColorMemo.stripHex(r.memo)); // 구버전 메모의 색 hex는 숨김
+        pendingBgColor = r.bgColorRgb;
+        pendingTextColor = r.textColorRgb;
+        renderCombinedSwatch();
         if (r.hasPhoto()) {
             showPreviewFromPath(r.photoPath);
         }
@@ -354,14 +419,7 @@ public class ParkingInputActivity extends AppCompatActivity {
     // ----- 사진 -----
 
     private void launchCamera() {
-        try {
-            captureTempFile = photoStore.createTempCaptureFile();
-            captureUri = FileProvider.getUriForFile(this,
-                    getPackageName() + ".fileprovider", captureTempFile);
-            takePictureLauncher.launch(captureUri);
-        } catch (Exception e) {
-            toast(getString(com.wonder.wherepark.R.string.input_photo_fail));
-        }
+        cameraLauncher.launch(new Intent(this, CameraCaptureActivity.class));
     }
 
     /** 소스 Uri를 압축 저장하고 미리보기에 반영. 백그라운드에서 처리. */
@@ -378,8 +436,194 @@ public class ParkingInputActivity extends AppCompatActivity {
                     return;
                 }
                 setNewPhoto(path);
+                analyzePhoto(path); // 촬영 사진 자동 분석 후 확인 → 입력값 반영
             });
         }).start();
+    }
+
+    /**
+     * 촬영한 사진을 온디바이스로 분석해 층·위치·배경색을 추출하고,
+     * 확인 다이얼로그에서 사용자가 "적용"하면 입력 화면의 값들을 갱신한다.
+     */
+    private void analyzePhoto(String path) {
+        new Thread(() -> {
+            Bitmap bmp = BitmapFactory.decodeFile(path);
+            runOnUiThread(() -> {
+                if (bmp == null || isFinishing()) {
+                    return;
+                }
+                ParkingPhotoAnalyzer.analyze(bmp, result -> {
+                    bmp.recycle();
+                    if (!isFinishing()) {
+                        showAnalysisDialog(result);
+                    }
+                });
+            });
+        }).start();
+    }
+
+    private void showAnalysisDialog(ParkingPhotoAnalyzer.Result r) {
+        new AlertDialog.Builder(this)
+                .setTitle(com.wonder.wherepark.R.string.input_analysis_title)
+                .setView(buildAnalysisView(r))
+                .setPositiveButton(com.wonder.wherepark.R.string.input_analysis_apply,
+                        (d, w) -> applyAnalysisToForm(r))
+                .setNegativeButton(com.wonder.wherepark.R.string.input_analysis_dismiss, null)
+                .show();
+    }
+
+    /** 분석 결과(층/위치/배경·글자 색 견본+HEX/OCR 원문)를 담은 다이얼로그 뷰를 구성한다. */
+    private android.view.View buildAnalysisView(ParkingPhotoAnalyzer.Result r) {
+        String none = getString(com.wonder.wherepark.R.string.auto_detected_none);
+        int pad = dp(20);
+        android.widget.LinearLayout root = new android.widget.LinearLayout(this);
+        root.setOrientation(android.widget.LinearLayout.VERTICAL);
+        root.setPadding(pad, dp(12), pad, dp(8));
+
+        String floor = r.hasFloor() ? ParkingFormat.levelLabel(r.levelType) + " " + r.floorLabel : none;
+        String position = r.positionText != null && !r.positionText.isEmpty() ? r.positionText : none;
+        root.addView(textLine(getString(com.wonder.wherepark.R.string.input_analysis_floor, floor)));
+        root.addView(textLine(getString(com.wonder.wherepark.R.string.input_analysis_position, position)));
+        root.addView(colorRow(getString(com.wonder.wherepark.R.string.auto_detected_color), r.bgColorRgb));
+        root.addView(colorRow(getString(com.wonder.wherepark.R.string.auto_detected_text_color), r.textColorRgb));
+
+        String raw = r.rawText != null && !r.rawText.trim().isEmpty()
+                ? r.rawText.replace('\n', ' ').trim()
+                : getString(com.wonder.wherepark.R.string.analysis_debug_none);
+        android.widget.TextView dbg = textLine(getString(com.wonder.wherepark.R.string.analysis_debug_raw, raw));
+        dbg.setTextColor(0xFF888888);
+        ((android.widget.LinearLayout.LayoutParams) dbg.getLayoutParams()).topMargin = dp(12);
+        root.addView(dbg);
+        return root;
+    }
+
+    private android.widget.TextView textLine(String text) {
+        android.widget.TextView tv = new android.widget.TextView(this);
+        tv.setText(text);
+        android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(6);
+        tv.setLayoutParams(lp);
+        return tv;
+    }
+
+    /** "라벨  [색 견본]" 한 줄(HEX는 노출하지 않음). 색이 없으면 "인식 안 됨". */
+    private android.view.View colorRow(String label, @Nullable Integer rgb) {
+        android.widget.LinearLayout row = new android.widget.LinearLayout(this);
+        row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        android.widget.LinearLayout.LayoutParams rlp = new android.widget.LinearLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+        rlp.topMargin = dp(8);
+        row.setLayoutParams(rlp);
+
+        android.widget.TextView lbl = new android.widget.TextView(this);
+        lbl.setText(label);
+        row.addView(lbl, new android.widget.LinearLayout.LayoutParams(dp(64),
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        if (rgb != null) {
+            android.view.View swatch = new android.view.View(this);
+            android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+            gd.setColor(0xFF000000 | rgb);
+            gd.setCornerRadius(dp(4));
+            gd.setStroke(2, 0xFF888888);
+            swatch.setBackground(gd);
+            android.widget.LinearLayout.LayoutParams slp =
+                    new android.widget.LinearLayout.LayoutParams(dp(26), dp(26));
+            row.addView(swatch, slp);
+        } else {
+            android.widget.TextView nv = new android.widget.TextView(this);
+            nv.setText(com.wonder.wherepark.R.string.auto_detected_none);
+            row.addView(nv);
+        }
+        return row;
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    /** 분석된 배경/글자 색을 메모 행 오른쪽의 결합 스와치(배경 속 글자색)로 표시한다. */
+    private void renderCombinedSwatch() {
+        android.graphics.Bitmap sw = ColorMemo.swatch(pendingBgColor, pendingTextColor);
+        if (sw != null) {
+            binding.swatchCombined.setImageBitmap(sw);
+            binding.swatchCombined.setVisibility(View.VISIBLE);
+        } else {
+            binding.swatchCombined.setVisibility(View.GONE);
+        }
+    }
+
+    /** 분석 결과를 입력 폼에 반영한다(층/유형 토글·층 스피너·메모). */
+    private void applyAnalysisToForm(ParkingPhotoAnalyzer.Result r) {
+        if (r.hasFloor() && isLevelSelectable(r.levelType)) {
+            checkLevel(r.levelType);
+            refreshFloorOptions(true);
+            selectFloorLabel(r.floorLabel);
+        }
+        // 메모 반영: 직전 분석으로 넣은 문구는 걷어내고(사용자 입력은 보존) 새 분석 결과로 교체.
+        String cur = binding.inputMemo.getText() != null
+                ? binding.inputMemo.getText().toString().trim() : "";
+        cur = stripSegment(cur, lastAnalysisMemo);
+        String add = r.memoText();
+        String combined;
+        if (add == null || add.isEmpty()) {
+            combined = cur;
+        } else {
+            combined = cur.isEmpty() ? add : cur + " · " + add;
+        }
+        binding.inputMemo.setText(combined);
+        lastAnalysisMemo = add;
+        // 색은 메모가 아니라 별도 필드/스와치로 반영
+        pendingBgColor = r.bgColorRgb;
+        pendingTextColor = r.textColorRgb;
+        renderCombinedSwatch();
+        toast(getString(com.wonder.wherepark.R.string.input_analysis_applied));
+    }
+
+    /**
+     * 메모 문자열에서 직전 분석 문구(segment)를 제거한다. 분석 문구는 항상 끝에 ` · `로 덧붙여지므로
+     * 끝부분 일치를 우선 처리하고, 사용자가 중간을 편집한 경우를 대비해 임의 위치 제거도 시도한다.
+     */
+    @androidx.annotation.NonNull
+    private String stripSegment(@androidx.annotation.NonNull String text, @Nullable String segment) {
+        if (segment == null || segment.isEmpty() || text.isEmpty()) {
+            return text;
+        }
+        if (text.equals(segment)) {
+            return "";
+        }
+        String withSep = " · " + segment;
+        if (text.endsWith(withSep)) {
+            return text.substring(0, text.length() - withSep.length()).trim();
+        }
+        int idx = text.indexOf(segment);
+        if (idx >= 0) {
+            String res = (text.substring(0, idx) + text.substring(idx + segment.length()))
+                    .replace(" ·  · ", " · ").trim();
+            if (res.startsWith("· ")) res = res.substring(2).trim();
+            if (res.endsWith(" ·")) res = res.substring(0, res.length() - 2).trim();
+            return res;
+        }
+        return text;
+    }
+
+    /** 현재 주차 구분에서 해당 유형을 선택할 수 있는지(집 주차는 층수 0인 유형 비활성). */
+    private boolean isLevelSelectable(ParkingLevelType lv) {
+        if (selectedPlace() == ParkingPlaceType.OUTSIDE) {
+            return true;
+        }
+        AppSettings s = settingsRepo.get();
+        if (lv == ParkingLevelType.UNDERGROUND) {
+            return s.homeUndergroundFloorCount > 0;
+        }
+        if (lv == ParkingLevelType.GROUND) {
+            return s.homeGroundFloorCount > 0;
+        }
+        return true;
     }
 
     /** 새 이미지(촬영/갤러리/그리기)를 반영한다. 기존 임시 이미지는 교체 시 정리. */
@@ -438,6 +682,8 @@ public class ParkingInputActivity extends AppCompatActivity {
         r.floorLabel = selectedFloorLabel();
         r.memo = TextUtils.isEmpty(memo) ? null : memo;
         r.photoPath = pendingPhotoPath;
+        r.bgColorRgb = pendingBgColor;     // 색은 별도 컬럼에 저장(메모엔 미포함)
+        r.textColorRgb = pendingTextColor;
 
         if (isNew) {
             // 자동 감지된 주차를 입력하면 AUTO, 순수 수동 저장이면 MANUAL (§13.10)
@@ -505,7 +751,6 @@ public class ParkingInputActivity extends AppCompatActivity {
         if (pendingPhotoPath != null && !pendingPhotoPath.equals(originalPhotoPath)) {
             photoStore.deleteByPath(pendingPhotoPath);
         }
-        deleteTempCapture();
         finish();
     }
 
@@ -513,13 +758,6 @@ public class ParkingInputActivity extends AppCompatActivity {
     public void onBackPressed() {
         onCancel();
         super.onBackPressed();
-    }
-
-    private void deleteTempCapture() {
-        if (captureTempFile != null && captureTempFile.exists()) {
-            //noinspection ResultOfMethodCallIgnored
-            captureTempFile.delete();
-        }
     }
 
     // ----- 위치 헬퍼 -----

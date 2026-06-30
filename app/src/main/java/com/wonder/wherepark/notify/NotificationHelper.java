@@ -17,8 +17,10 @@ import androidx.core.app.NotificationManagerCompat;
 
 import com.wonder.wherepark.R;
 import com.wonder.wherepark.data.model.ParkingRecord;
+import com.wonder.wherepark.ui.auto.AutoCaptureActivity;
 import com.wonder.wherepark.ui.input.ParkingInputActivity;
 import com.wonder.wherepark.ui.main.MainActivity;
+import com.wonder.wherepark.util.ColorMemo;
 import com.wonder.wherepark.util.ParkingFormat;
 
 /**
@@ -53,7 +55,8 @@ public final class NotificationHelper {
      */
     public static Notification buildForeground(@NonNull Context context,
                                                @NonNull String title, @NonNull String text,
-                                               @Nullable String photoPath) {
+                                               @Nullable String photoPath,
+                                               @Nullable Integer bgColor, @Nullable Integer textColor) {
         ensureChannels(context);
         NotificationCompat.Builder b = new NotificationCompat.Builder(context, CH_ONGOING)
                 .setSmallIcon(R.drawable.ic_notification)
@@ -62,7 +65,7 @@ public final class NotificationHelper {
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setOngoing(true)
                 .setContentIntent(parkingTabPendingIntent(context));
-        applyImageOrText(b, text, photoPath);
+        applyImageOrText(b, text, photoPath, bgColor, textColor);
         return b.build();
     }
 
@@ -92,16 +95,29 @@ public final class NotificationHelper {
 
     // ----- 1) 입력 요청 알림 (§14.1) -----
 
-    public static void showInputRequest(@NonNull Context context) {
+    /**
+     * 주차 위치 입력 요청 알림. {@code autoCapture}가 true면 탭 시 자동 촬영·분석 화면으로,
+     * false면 기존 수동 입력 화면으로 진입한다.
+     */
+    public static void showInputRequest(@NonNull Context context, boolean autoCapture) {
         ensureChannels(context);
+        int bodyRes = autoCapture ? R.string.noti_input_body_auto : R.string.noti_input_body;
+        PendingIntent contentIntent = autoCapture
+                ? autoCapturePendingIntent(context) : inputPendingIntent(context);
         NotificationCompat.Builder b = new NotificationCompat.Builder(context, CH_INPUT)
                 .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(context.getString(R.string.noti_input_title))
-                .setContentText(context.getString(R.string.noti_input_body))
+                .setContentText(context.getString(bodyRes))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_CALL)
                 .setAutoCancel(false)
                 .setOngoing(true)
-                .setContentIntent(inputPendingIntent(context));
+                .setContentIntent(contentIntent);
+        if (autoCapture) {
+            // 화면 꺼짐/잠금 상태면 잠금화면 위로 촬영 화면을 바로 띄운다(USE_FULL_SCREEN_INTENT).
+            // 권한이 없으면 시스템이 헤드업 알림으로 자동 강등한다.
+            b.setFullScreenIntent(contentIntent, true);
+        }
         notify(context, ID_INPUT, b);
     }
 
@@ -122,7 +138,7 @@ public final class NotificationHelper {
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setOngoing(true)
                 .setContentIntent(parkingTabPendingIntent(context));
-        applyImageOrText(b, text, record.photoPath);
+        applyImageOrText(b, text, record.photoPath, record.bgColorRgb, record.textColorRgb);
         notify(context, ID_ONGOING, b);
     }
 
@@ -139,12 +155,21 @@ public final class NotificationHelper {
 
     // ----- 내부 -----
 
-    /** 사진/그림이 있으면 BigPictureStyle로 크게 표시하고, 없으면 BigTextStyle로 표시한다. */
+    /**
+     * 알림 큰 아이콘/스타일을 설정한다. 분석된 색이 있으면 색 견본(스와치)을 작은 아이콘으로 보여주고,
+     * 사진이 있으면 펼쳤을 때 큰 이미지로 표시한다(스와치 없으면 사진을 작은 아이콘으로).
+     */
     private static void applyImageOrText(NotificationCompat.Builder b, String text,
-                                         @Nullable String photoPath) {
+                                         @Nullable String photoPath,
+                                         @Nullable Integer bgColor, @Nullable Integer textColor) {
         Bitmap pic = loadBitmap(photoPath);
-        if (pic != null) {
+        Bitmap swatch = ColorMemo.swatch(bgColor, textColor);
+        if (swatch != null) {
+            b.setLargeIcon(swatch);   // 색 견본을 작은 아이콘으로
+        } else if (pic != null) {
             b.setLargeIcon(pic);
+        }
+        if (pic != null) {
             b.setStyle(new NotificationCompat.BigPictureStyle()
                     .bigPicture(pic)
                     .bigLargeIcon((Bitmap) null) // 펼쳤을 때 작은 썸네일 숨김
@@ -180,6 +205,12 @@ public final class NotificationHelper {
         Intent intent = new Intent(context, ParkingInputActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         return PendingIntent.getActivity(context, 0, intent, pendingFlags());
+    }
+
+    private static PendingIntent autoCapturePendingIntent(Context context) {
+        Intent intent = new Intent(context, AutoCaptureActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        return PendingIntent.getActivity(context, 2, intent, pendingFlags());
     }
 
     private static PendingIntent parkingTabPendingIntent(Context context) {

@@ -45,8 +45,9 @@ public final class ParkingFormat {
                 && r.floorLabel != null && !r.floorLabel.isEmpty()) {
             sb.append(' ').append(r.floorLabel);
         }
-        if (r.memo != null && !r.memo.trim().isEmpty()) {
-            sb.append(" · ").append(r.memo.trim());
+        String memo = ColorMemo.stripHex(r.memo); // 구버전 메모의 색 hex는 노출하지 않음
+        if (memo != null && !memo.trim().isEmpty()) {
+            sb.append(" · ").append(memo.trim());
         }
         return sb.toString();
     }

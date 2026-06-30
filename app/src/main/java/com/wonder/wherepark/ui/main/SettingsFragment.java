@@ -28,6 +28,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 
+import com.google.android.material.materialswitch.MaterialSwitch;
 import com.wonder.wherepark.R;
 import com.wonder.wherepark.data.model.AppSettings;
 import com.wonder.wherepark.data.repo.ParkingRepository;
@@ -74,6 +75,8 @@ public class SettingsFragment extends Fragment {
     private Runnable pendingAfterPermission;
 
     private View root;
+    @Nullable
+    private MaterialSwitch autoPhotoSwitch;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -112,6 +115,10 @@ public class SettingsFragment extends Fragment {
         // 필수 설정
         view.findViewById(R.id.row_vehicle_bt).setOnClickListener(v -> onVehicleBtClicked());
 
+        // 주차 사진 분석 토글
+        autoPhotoSwitch = view.findViewById(R.id.switch_auto_photo);
+        autoPhotoSwitch.setOnCheckedChangeListener(autoPhotoListener);
+
         // 집 설정
         view.findViewById(R.id.btn_save_wifi).setOnClickListener(v -> onSaveWifiClicked());
         view.findViewById(R.id.row_home_wifi).setOnClickListener(v -> onManageWifiClicked());
@@ -131,6 +138,9 @@ public class SettingsFragment extends Fragment {
         // 권한 상태
         view.findViewById(R.id.btn_request_perms).setOnClickListener(v -> requestAllPermissions());
         view.findViewById(R.id.btn_app_settings).setOnClickListener(v -> openAppSettings());
+        // 특수 권한(팝업 불가, 전용 설정 화면에서 부여) — 행 탭 시 해당 설정 화면 열기
+        view.findViewById(R.id.row_perm_overlay).setOnClickListener(v -> openOverlaySettings());
+        view.findViewById(R.id.row_perm_fsi).setOnClickListener(v -> openFullScreenIntentSettings());
 
         // 배터리
         view.findViewById(R.id.btn_open_battery).setOnClickListener(v -> openBatterySettings());
@@ -178,6 +188,85 @@ public class SettingsFragment extends Fragment {
         status(R.id.val_perm_noti, PermissionUtil.notification(ctx));
         status(R.id.val_perm_wifi, PermissionUtil.wifiAccess(ctx));
         status(R.id.val_perm_battery, PermissionUtil.batteryOptimization(ctx));
+        status(R.id.val_perm_overlay, PermissionUtil.overlay(ctx));
+        status(R.id.val_perm_fsi, PermissionUtil.fullScreenIntent(ctx));
+
+        // 토글 상태 갱신(초기화 등으로 값이 바뀌었을 수 있으므로 리스너를 잠시 떼고 반영)
+        if (autoPhotoSwitch != null) {
+            autoPhotoSwitch.setOnCheckedChangeListener(null);
+            autoPhotoSwitch.setChecked(s.autoPhotoAnalysisEnabled);
+            autoPhotoSwitch.setOnCheckedChangeListener(autoPhotoListener);
+        }
+    }
+
+    /** 주차 사진 분석 사용 여부 토글 저장. 켤 때 오버레이 권한이 없으면 안내한다. */
+    private final android.widget.CompoundButton.OnCheckedChangeListener autoPhotoListener =
+            (button, checked) -> {
+                AppSettings s = settingsRepo.get();
+                s.autoPhotoAnalysisEnabled = checked;
+                settingsRepo.update(s);
+                if (checked) {
+                    promptAutoLaunchPermissionsIfNeeded();
+                }
+            };
+
+    /**
+     * 주차 인식 시 촬영 화면을 자동으로 띄우는 데 필요한 권한을 안내한다.
+     *  - 화면 켜짐 시 백그라운드 실행: "다른 앱 위에 표시"(오버레이)
+     *  - 잠금/화면 꺼짐 시 잠금화면 위 표시: "풀스크린 알림"(USE_FULL_SCREEN_INTENT, Android 14+)
+     * 둘 다 없어도 알림으로 폴백되지만, 권한이 있어야 의도한 자동 실행이 동작한다.
+     */
+    private void promptAutoLaunchPermissionsIfNeeded() {
+        Context ctx = requireContext();
+        if (!Settings.canDrawOverlays(ctx)) {
+            showPermDialog(R.string.settings_overlay_title, R.string.settings_overlay_message,
+                    this::openOverlaySettings);
+            return; // 오버레이 부여 후 다시 토글하면 풀스크린 권한을 이어서 안내
+        }
+        if (!canUseFullScreenIntent(ctx)) {
+            showPermDialog(R.string.settings_fsi_title, R.string.settings_fsi_message,
+                    this::openFullScreenIntentSettings);
+        }
+    }
+
+    private boolean canUseFullScreenIntent(Context ctx) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            return true; // Android 13 이하는 별도 권한 없이 사용 가능
+        }
+        android.app.NotificationManager nm =
+                ctx.getSystemService(android.app.NotificationManager.class);
+        return nm == null || nm.canUseFullScreenIntent();
+    }
+
+    private void showPermDialog(int titleRes, int messageRes, Runnable onGrant) {
+        new AlertDialog.Builder(requireContext())
+                .setTitle(titleRes)
+                .setMessage(messageRes)
+                .setPositiveButton(R.string.settings_overlay_grant, (d, w) -> onGrant.run())
+                .setNegativeButton(R.string.settings_cancel, null)
+                .show();
+    }
+
+    private void openOverlaySettings() {
+        Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:" + requireContext().getPackageName()));
+        try {
+            startActivity(intent);
+        } catch (Exception e) {
+            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION));
+        }
+    }
+
+    private void openFullScreenIntentSettings() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            return;
+        }
+        try {
+            startActivity(new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+                    Uri.parse("package:" + requireContext().getPackageName())));
+        } catch (Exception e) {
+            openAppSettings();
+        }
     }
 
     private void status(int viewId, Status st) {
@@ -499,6 +588,7 @@ public class SettingsFragment extends Fragment {
 
     private void deleteAllRecords() {
         parkingRepo.deleteAll();
+        photoStore.deleteAll(); // §8.6.1 이력에 딸린 사진 파일도 함께 삭제(주인 없는 파일 잔류 방지)
         // §8.6.1 현재 주차 정보도 없음으로.
         com.wonder.wherepark.data.model.ParkingState st = stateRepo.get();
         st.currentParkingRecordId = com.wonder.wherepark.data.model.ParkingState.NO_RECORD;

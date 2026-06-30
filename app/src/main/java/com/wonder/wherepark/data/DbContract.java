@@ -7,7 +7,9 @@ package com.wonder.wherepark.data;
 public final class DbContract {
 
     public static final String DB_NAME = "wherepark.db";
-    public static final int DB_VERSION = 1;
+    // v2: app_settings.auto_photo_analysis_enabled 추가
+    // v3: parking_records.bg_color / text_color 추가(분석된 색, 사용자에겐 스와치로만 노출)
+    public static final int DB_VERSION = 3;
 
     private DbContract() {
     }
@@ -29,6 +31,8 @@ public final class DbContract {
         public static final String COL_BT_DISCONNECT_STABILIZE_SECONDS = "bt_disconnect_stabilize_seconds";
         public static final String COL_WIFI_CONNECT_STABILIZE_SECONDS = "wifi_connect_stabilize_seconds";
         public static final String COL_WIFI_DISCONNECT_STABILIZE_SECONDS = "wifi_disconnect_stabilize_seconds";
+        /** 주차 시 사진 촬영 후 자동 분석 사용 여부(기본 ON). */
+        public static final String COL_AUTO_PHOTO_ANALYSIS = "auto_photo_analysis_enabled";
         public static final String COL_IS_ONBOARDING_COMPLETED = "is_onboarding_completed";
         public static final String COL_CREATED_AT = "created_at";
         public static final String COL_UPDATED_AT = "updated_at";
@@ -53,6 +57,9 @@ public final class DbContract {
         public static final String COL_LONGITUDE = "longitude";
         public static final String COL_HAS_GPS = "has_gps";
         public static final String COL_PHOTO_PATH = "photo_path";
+        /** 분석된 배경/글자 색(ARGB int). 사용자에겐 스와치로만 보이고 텍스트로는 노출하지 않는다. */
+        public static final String COL_BG_COLOR = "bg_color";
+        public static final String COL_TEXT_COLOR = "text_color";
         public static final String COL_CREATED_AT = "created_at";
         public static final String COL_UPDATED_AT = "updated_at";
 

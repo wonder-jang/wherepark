@@ -20,6 +20,14 @@
 
     <!-- 설정 탭 (§8) -->
     <string name="settings_section_required">필수 설정</string>
+    <string name="settings_section_auto_photo">주차 사진 분석</string>
+    <string name="settings_auto_photo">주차 시 바로 사진 촬영</string>
+    <string name="settings_auto_photo_desc">켜면 주차가 감지될 때 카메라로 주차 표지판을 촬영하고, 층·위치·배경색을 자동 분석해 확인받아 저장합니다. 끄면 직접 입력합니다.</string>
+    <string name="settings_overlay_title">촬영 화면 자동 실행</string>
+    <string name="settings_overlay_message">주차가 감지되면 촬영 화면을 자동으로 띄우려면 \'다른 앱 위에 표시\' 권한이 필요합니다. 화면이 잠겨 있으면 잠금 해제 시 바로 실행됩니다. 권한을 허용하지 않으면 알림으로 안내합니다.</string>
+    <string name="settings_overlay_grant">권한 설정 열기</string>
+    <string name="settings_fsi_title">잠금화면 위 표시</string>
+    <string name="settings_fsi_message">화면이 꺼져 있거나 잠겨 있을 때 잠금화면 위로 촬영 화면을 바로 띄우려면 \'전체 화면 알림\' 권한이 필요합니다. 허용하지 않으면 알림으로만 안내합니다.</string>
     <string name="settings_section_home">집 설정</string>
     <string name="settings_section_stabilize">감지 안정화 설정</string>
     <string name="settings_section_permissions">권한 상태</string>
@@ -52,6 +60,8 @@
     <string name="settings_perm_notification">알림 권한</string>
     <string name="settings_perm_wifi">Wi-Fi 상태 접근</string>
     <string name="settings_perm_battery">배터리 최적화 상태</string>
+    <string name="settings_perm_overlay">다른 앱 위에 표시 (촬영 화면 자동 실행)</string>
+    <string name="settings_perm_fsi">전체 화면 알림 (잠금화면 위 표시)</string>
     <string name="settings_request_permissions">권한 요청</string>
     <string name="settings_open_app_settings">앱 설정 열기</string>
 
@@ -92,6 +102,7 @@
     <string name="input_take_photo">촬영</string>
     <string name="input_draw">그리기</string>
     <string name="input_remove_photo">사진 삭제</string>
+    <string name="input_colors_label">분석된 색 (사진 분석 시)</string>
 
     <!-- 주차 위치 그리기 -->
     <string name="draw_title">주차 위치 그리기</string>
@@ -106,8 +117,39 @@
     <string name="input_err_etc">기타 주차는 추가 위치 정보 또는 사진 중 하나 이상이 필요합니다.</string>
     <string name="input_photo_fail">사진을 저장하지 못했습니다.</string>
     <string name="input_saved">주차 위치를 저장했습니다.</string>
+    <string name="input_analyzing">사진을 분석하고 있습니다…</string>
+    <string name="input_analysis_title">사진 분석 결과</string>
+    <string name="input_analysis_apply">적용</string>
+    <string name="input_analysis_dismiss">닫기</string>
+    <string name="input_analysis_floor">층: %1$s</string>
+    <string name="input_analysis_position">위치: %1$s</string>
+    <string name="input_analysis_color">배경색: %1$s</string>
+    <string name="input_analysis_text_color">글자색: %1$s</string>
+    <string name="input_analysis_applied">분석 결과를 입력값에 반영했습니다.</string>
+
+    <!-- 자동 촬영·분석 확인 화면 -->
+    <string name="auto_capture_title">주차 정보 확인</string>
+    <string name="auto_analyzing">사진을 분석하고 있습니다…</string>
+    <string name="auto_detected_floor">인식된 층</string>
+    <string name="auto_detected_position">인식된 위치</string>
+    <string name="auto_detected_color">배경색</string>
+    <string name="auto_detected_text_color">글자색</string>
+    <string name="auto_detected_none">인식 안 됨</string>
+    <string name="auto_confirm">이대로 저장</string>
+    <string name="auto_edit">수정</string>
+    <string name="auto_retake">다시 촬영</string>
+    <string name="auto_capture_canceled">촬영이 취소되었습니다.</string>
+    <string name="camera_hint">주차 위치를 화면 중앙에 담고 촬영하세요.</string>
+    <string name="camera_shutter">촬영</string>
+    <string name="camera_permission_denied">카메라 권한이 필요합니다.</string>
+    <string name="auto_hint">아래 정보가 맞으면 저장, 다르면 수정을 눌러 직접 고치세요.</string>
+
+    <!-- 분석 디버그(안정화 전까지 OCR 원문 표시) -->
+    <string name="analysis_debug_raw">[디버그] OCR 원문: %1$s</string>
+    <string name="analysis_debug_none">(인식된 글자 없음)</string>
 
     <!-- 주차 위치 탭 (§9) -->
+    <string name="parking_auto_capture">주차 사진 촬영</string>
     <string name="parking_bt_not_set_title">차량 BT 설정이 필요합니다</string>
     <string name="parking_bt_not_set_body">설정 탭에서 차량 블루투스를 지정해주세요.</string>
     <string name="parking_go_settings">설정 탭으로 이동</string>
@@ -161,6 +203,7 @@
     <string name="noti_channel_away">외출 시 주차 위치 알림</string>
     <string name="noti_input_title">주차 위치를 입력하세요</string>
     <string name="noti_input_body">주차가 감지되었습니다. 눌러서 위치를 입력하세요.</string>
+    <string name="noti_input_body_auto">주차가 감지되었습니다. 눌러서 주차 사진을 촬영하세요.</string>
     <string name="noti_ongoing_title">주차 위치</string>
     <string name="noti_away_title">주차 위치</string>
     <string name="noti_fgs_detecting">주차 자동 감지 중</string>

@@ -27,6 +27,8 @@ import com.wonder.wherepark.notify.NotificationHelper;
 import com.wonder.wherepark.photo.PhotoStore;
 import com.wonder.wherepark.service.DetectionService;
 import com.wonder.wherepark.ui.input.ParkingInputActivity;
+import com.wonder.wherepark.ui.photo.PhotoViewActivity;
+import com.wonder.wherepark.util.ColorMemo;
 import com.wonder.wherepark.util.MapLauncher;
 import com.wonder.wherepark.util.ParkingFormat;
 import com.wonder.wherepark.util.TimeUtil;
@@ -93,8 +95,9 @@ public class ParkingDetailActivity extends AppCompatActivity {
         bindRow(R.id.row_floor, getString(R.string.detail_floor),
                 (r.parkingLevelType != ParkingLevelType.ETC && r.floorLabel != null)
                         ? r.floorLabel : getString(R.string.detail_none_value));
+        String memo = ColorMemo.stripHex(r.memo); // 구버전 메모의 색 hex는 노출하지 않음
         bindRow(R.id.row_memo, getString(R.string.detail_memo),
-                (r.memo != null && !r.memo.isEmpty()) ? r.memo : getString(R.string.detail_none_value));
+                (memo != null && !memo.isEmpty()) ? memo : getString(R.string.detail_none_value));
         bindRow(R.id.row_current, getString(R.string.detail_is_current),
                 getString(r.isCurrent ? R.string.detail_yes : R.string.detail_no));
         bindRow(R.id.row_save_type, getString(R.string.detail_save_type),
@@ -105,6 +108,7 @@ public class ParkingDetailActivity extends AppCompatActivity {
                         getString(R.string.detail_gps_saved), r.latitude, r.longitude)
                         : getString(R.string.detail_gps_none));
 
+        showColorSwatch(r);
         showPhoto(r);
 
         View mapBtn = findViewById(R.id.btn_map);
@@ -114,6 +118,18 @@ public class ParkingDetailActivity extends AppCompatActivity {
                     r.latitude, r.longitude, ParkingFormat.summary(r)));
         } else {
             mapBtn.setVisibility(View.GONE);
+        }
+    }
+
+    /** 분석된 배경/글자 색을 결합 스와치로 표시(없으면 숨김). 사용자에겐 스와치로만 노출. */
+    private void showColorSwatch(ParkingRecord r) {
+        ImageView sw = findViewById(R.id.img_color_swatch);
+        Bitmap bmp = ColorMemo.swatch(r.bgColorRgb, r.textColorRgb);
+        if (bmp != null) {
+            sw.setImageBitmap(bmp);
+            sw.setVisibility(View.VISIBLE);
+        } else {
+            sw.setVisibility(View.GONE);
         }
     }
 
@@ -129,6 +145,7 @@ public class ParkingDetailActivity extends AppCompatActivity {
         if (bmp != null) {
             img.setImageBitmap(bmp);
             img.setVisibility(View.VISIBLE);
+            img.setOnClickListener(v -> PhotoViewActivity.open(this, r.photoPath)); // 탭하면 원본 보기
         } else {
             img.setVisibility(View.GONE);
         }

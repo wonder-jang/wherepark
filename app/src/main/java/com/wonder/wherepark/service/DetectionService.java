@@ -197,6 +197,8 @@ public class DetectionService extends Service implements StateEngine.Listener {
         String title = getString(R.string.app_name);
         String text;
         String photoPath = null;
+        Integer bgColor = null;
+        Integer textColor = null;
         if (st.parkingStatus == ParkingStatus.DRIVING) {
             text = getString(R.string.noti_fgs_driving);
         } else if (st.parkingStatus == ParkingStatus.PARKED) {
@@ -206,6 +208,8 @@ public class DetectionService extends Service implements StateEngine.Listener {
                 title = getString(R.string.noti_away_title); // "주차 위치"
                 text = ParkingFormat.summary(current);
                 photoPath = current.photoPath; // 사진/그림을 알림에 함께 표시
+                bgColor = current.bgColorRgb;  // 분석된 색 견본 표시용
+                textColor = current.textColorRgb;
             } else if (st.homeStatus == HomeStatus.HOME) {
                 // §14.2 재택(집 Wi-Fi 연결) 중 위치 미입력 → 상시 알림 미표시(사실상 hide됨)
                 text = getString(R.string.noti_fgs_at_home);
@@ -215,7 +219,7 @@ public class DetectionService extends Service implements StateEngine.Listener {
         } else {
             text = getString(R.string.noti_fgs_detecting);
         }
-        return NotificationHelper.buildForeground(this, title, text, photoPath);
+        return NotificationHelper.buildForeground(this, title, text, photoPath, bgColor, textColor);
     }
 
     private int foregroundType() {

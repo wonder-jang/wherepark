@@ -29,6 +29,8 @@ public class AppSettings {
     public int btDisconnectStabilizeSeconds = DEFAULT_BT_DISCONNECT_STABILIZE_SECONDS;
     public int wifiConnectStabilizeSeconds = DEFAULT_WIFI_CONNECT_STABILIZE_SECONDS;
     public int wifiDisconnectStabilizeSeconds = DEFAULT_WIFI_DISCONNECT_STABILIZE_SECONDS;
+    /** 주차 시 사진 촬영 후 자동 분석 사용 여부. 기본 ON. */
+    public boolean autoPhotoAnalysisEnabled = true;
     public boolean isOnboardingCompleted = false;
     public String createdAt;
     public String updatedAt;

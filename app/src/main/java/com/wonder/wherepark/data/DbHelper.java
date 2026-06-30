@@ -61,7 +61,19 @@ public class DbHelper extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(@NonNull SQLiteDatabase db, int oldVersion, int newVersion) {
-        // MVP(version 1)에서는 마이그레이션 경로가 없다. 향후 버전에서 ALTER 추가.
+        // v1 → v2: app_settings에 자동 사진 분석 사용 여부 컬럼 추가(기본 ON=1).
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE " + DbContract.Settings.TABLE
+                    + " ADD COLUMN " + DbContract.Settings.COL_AUTO_PHOTO_ANALYSIS
+                    + " INTEGER NOT NULL DEFAULT 1");
+        }
+        // v2 → v3: parking_records에 분석된 색 컬럼 추가(NULL 허용).
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE " + DbContract.Records.TABLE
+                    + " ADD COLUMN " + DbContract.Records.COL_BG_COLOR + " INTEGER");
+            db.execSQL("ALTER TABLE " + DbContract.Records.TABLE
+                    + " ADD COLUMN " + DbContract.Records.COL_TEXT_COLOR + " INTEGER");
+        }
     }
 
     /** 첫 설치 시 app_settings 단일 row(id=1)를 기본값으로 생성한다. */
@@ -78,6 +90,7 @@ public class DbHelper extends SQLiteOpenHelper {
                 AppSettings.DEFAULT_WIFI_CONNECT_STABILIZE_SECONDS);
         v.put(DbContract.Settings.COL_WIFI_DISCONNECT_STABILIZE_SECONDS,
                 AppSettings.DEFAULT_WIFI_DISCONNECT_STABILIZE_SECONDS);
+        v.put(DbContract.Settings.COL_AUTO_PHOTO_ANALYSIS, 1); // 기본 ON
         v.put(DbContract.Settings.COL_IS_ONBOARDING_COMPLETED, 0);
         v.put(DbContract.Settings.COL_CREATED_AT, now);
         v.put(DbContract.Settings.COL_UPDATED_AT, now);
@@ -112,6 +125,7 @@ public class DbHelper extends SQLiteOpenHelper {
                     + DbContract.Settings.COL_BT_DISCONNECT_STABILIZE_SECONDS + " INTEGER, "
                     + DbContract.Settings.COL_WIFI_CONNECT_STABILIZE_SECONDS + " INTEGER, "
                     + DbContract.Settings.COL_WIFI_DISCONNECT_STABILIZE_SECONDS + " INTEGER, "
+                    + DbContract.Settings.COL_AUTO_PHOTO_ANALYSIS + " INTEGER NOT NULL DEFAULT 1, "
                     + DbContract.Settings.COL_IS_ONBOARDING_COMPLETED + " INTEGER, "
                     + DbContract.Settings.COL_CREATED_AT + " TEXT, "
                     + DbContract.Settings.COL_UPDATED_AT + " TEXT"
@@ -131,6 +145,8 @@ public class DbHelper extends SQLiteOpenHelper {
                     + DbContract.Records.COL_LONGITUDE + " REAL, "
                     + DbContract.Records.COL_HAS_GPS + " INTEGER NOT NULL DEFAULT 0, "
                     + DbContract.Records.COL_PHOTO_PATH + " TEXT, "
+                    + DbContract.Records.COL_BG_COLOR + " INTEGER, "
+                    + DbContract.Records.COL_TEXT_COLOR + " INTEGER, "
                     + DbContract.Records.COL_CREATED_AT + " TEXT, "
                     + DbContract.Records.COL_UPDATED_AT + " TEXT"
                     + ")";

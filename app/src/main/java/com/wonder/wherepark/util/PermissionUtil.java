@@ -80,6 +80,27 @@ public final class PermissionUtil {
     }
 
     /**
+     * "다른 앱 위에 표시"(SYSTEM_ALERT_WINDOW) 특수 권한. 화면 켜짐 시 백그라운드에서
+     * 촬영 화면을 직접 띄우는 데 필요. 팝업이 아닌 전용 설정 화면에서만 부여 가능.
+     */
+    public static Status overlay(Context c) {
+        return android.provider.Settings.canDrawOverlays(c) ? Status.GRANTED : Status.CHECK_NEEDED;
+    }
+
+    /**
+     * "전체 화면 알림"(USE_FULL_SCREEN_INTENT) 특수 권한. 잠금/화면 꺼짐 상태에서 잠금화면 위로
+     * 촬영 화면을 띄우는 데 필요(Android 14+에서 별도 권한). 그 이전 버전은 기본 허용.
+     */
+    public static Status fullScreenIntent(Context c) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            return Status.GRANTED;
+        }
+        android.app.NotificationManager nm =
+                c.getSystemService(android.app.NotificationManager.class);
+        return (nm == null || nm.canUseFullScreenIntent()) ? Status.GRANTED : Status.CHECK_NEEDED;
+    }
+
+    /**
      * 온보딩/설정에서 한 번에 요청할 전경 런타임 권한 목록(아직 미허용분만).
      * 백그라운드 위치는 전경 위치 허용 이후 별도로 요청해야 하므로 제외한다.
      */

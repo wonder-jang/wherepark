@@ -29,8 +29,11 @@ import com.wonder.wherepark.data.repo.StateRepository;
 import com.wonder.wherepark.databinding.FragmentParkingBinding;
 import com.wonder.wherepark.engine.StateBus;
 import com.wonder.wherepark.notify.NotificationHelper;
+import com.wonder.wherepark.service.AutoCaptureLauncher;
 import com.wonder.wherepark.service.DetectionService;
+import com.wonder.wherepark.ui.auto.AutoCaptureActivity;
 import com.wonder.wherepark.ui.input.ParkingInputActivity;
+import com.wonder.wherepark.ui.photo.PhotoViewActivity;
 import com.wonder.wherepark.util.MapLauncher;
 import com.wonder.wherepark.util.ParkingFormat;
 import com.wonder.wherepark.util.TimeUtil;
@@ -110,6 +113,7 @@ public class ParkingFragment extends Fragment {
 
         hideAllButtons();
         binding.imgPhoto.setVisibility(View.GONE);
+        binding.imgColorSwatch.setVisibility(View.GONE);
 
         if (state.parkingStatus == ParkingStatus.DRIVING) {
             // §10.3 운행 중
@@ -120,6 +124,7 @@ public class ParkingFragment extends Fragment {
             // 주차 + 위치 입력됨 (§9.2) — 입력된 주차 구분(재택/외출)으로 표시
             binding.txtStatus.setText(parkedStatusRes(current.parkingPlaceType == ParkingPlaceType.HOME));
             binding.txtLocation.setText(ParkingFormat.summary(current));
+            showColorSwatch(current);
             showPhoto(current);
             show(binding.btnEdit);
             if (current.hasGps) {
@@ -135,6 +140,19 @@ public class ParkingFragment extends Fragment {
             binding.txtStatus.setText(parkedStatusRes(state.homeStatus == HomeStatus.HOME));
             binding.txtLocation.setText(R.string.parking_no_location);
             show(binding.btnInput);
+            if (settings.autoPhotoAnalysisEnabled) {
+                // 자동 모드: 버튼을 촬영으로 바꾼다.
+                binding.btnInput.setText(R.string.parking_auto_capture);
+                binding.btnInput.setOnClickListener(v -> openAutoCapture());
+                // 오버레이 권한이 있으면 AutoCaptureLauncher가 자동 실행을 책임지므로 여기선 띄우지 않는다(중복 방지).
+                // 권한이 없을 때만 화면이 떠 있는 동안 1회 자동으로 띄운다(포그라운드 폴백).
+                if (!AutoCaptureLauncher.canAutoLaunch(requireContext())) {
+                    maybeAutoLaunchCapture(state);
+                }
+            } else {
+                binding.btnInput.setText(R.string.parking_input);
+                binding.btnInput.setOnClickListener(v -> openInput(ParkingRecord.NO_ID));
+            }
             show(binding.btnClear);
             binding.btnClear.setOnClickListener(v -> confirmClear());
         } else {
@@ -150,6 +168,17 @@ public class ParkingFragment extends Fragment {
         return atHome ? R.string.parking_parked_home : R.string.parking_parked_outside;
     }
 
+    /** 분석된 배경/글자 색을 결합 스와치로 표시(없으면 숨김). */
+    private void showColorSwatch(ParkingRecord r) {
+        android.graphics.Bitmap sw = com.wonder.wherepark.util.ColorMemo.swatch(r.bgColorRgb, r.textColorRgb);
+        if (sw != null) {
+            binding.imgColorSwatch.setImageBitmap(sw);
+            binding.imgColorSwatch.setVisibility(View.VISIBLE);
+        } else {
+            binding.imgColorSwatch.setVisibility(View.GONE);
+        }
+    }
+
     private void showPhoto(ParkingRecord r) {
         if (!r.hasPhoto()) {
             binding.imgPhoto.setVisibility(View.GONE);
@@ -161,6 +190,7 @@ public class ParkingFragment extends Fragment {
         if (bmp != null) {
             binding.imgPhoto.setImageBitmap(bmp);
             binding.imgPhoto.setVisibility(View.VISIBLE);
+            binding.imgPhoto.setOnClickListener(v -> PhotoViewActivity.open(requireContext(), r.photoPath));
         } else {
             binding.imgPhoto.setVisibility(View.GONE);
         }
@@ -194,6 +224,27 @@ public class ParkingFragment extends Fragment {
             intent.putExtra(ParkingInputActivity.EXTRA_RECORD_ID, recordId);
         }
         startActivity(intent);
+    }
+
+    private void openAutoCapture() {
+        startActivity(new Intent(requireContext(), AutoCaptureActivity.class));
+    }
+
+    // 같은 주차 세션(상태 변경 시각 기준)에 대해 자동 촬영을 한 번만 띄우기 위한 가드.
+    @Nullable
+    private static String lastAutoCaptureToken;
+
+    /**
+     * 주차 미입력 상태가 화면에 나타나면 해당 세션 1회 자동으로 촬영 화면을 띄운다.
+     * 사용자가 촬영을 취소해도 같은 세션에서는 다시 자동으로 뜨지 않는다(수동 버튼으로 재시도).
+     */
+    private void maybeAutoLaunchCapture(ParkingState state) {
+        String token = state.lastStateChangedAt != null ? state.lastStateChangedAt : "";
+        if (token.equals(lastAutoCaptureToken)) {
+            return;
+        }
+        lastAutoCaptureToken = token;
+        openAutoCapture();
     }
 
     private void hideAllButtons() {

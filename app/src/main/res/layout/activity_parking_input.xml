@@ -101,20 +101,36 @@
                     android:minHeight="48dp" />
             </LinearLayout>
 
-            <!-- 추가 위치 정보 -->
-            <com.google.android.material.textfield.TextInputLayout
+            <!-- 추가 위치 정보 (오른쪽 끝에 분석된 색 스와치) -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                android:hint="@string/input_memo_hint">
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/input_memo"
-                    android:layout_width="match_parent"
+                <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:inputType="textMultiLine"
-                    android:maxLines="3" />
-            </com.google.android.material.textfield.TextInputLayout>
+                    android:hint="@string/input_memo_hint">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/input_memo"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textMultiLine"
+                        android:maxLines="3" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <ImageView
+                    android:id="@+id/swatch_combined"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="10dp"
+                    android:visibility="gone"
+                    android:contentDescription="@string/input_colors_label" />
+            </LinearLayout>
 
             <!-- 사진 -->
             <TextView style="@style/InputLabel" android:text="@string/input_photo" />
@@ -164,6 +180,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/input_remove_photo"
                 android:visibility="gone" />
+
 
             <TextView
                 android:layout_width="match_parent"

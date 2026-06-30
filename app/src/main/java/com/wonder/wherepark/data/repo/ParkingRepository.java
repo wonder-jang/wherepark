@@ -160,6 +160,8 @@ public class ParkingRepository {
         putNullableDouble(v, Records.COL_LONGITUDE, r.longitude);
         v.put(Records.COL_HAS_GPS, r.hasGps ? 1 : 0);
         v.put(Records.COL_PHOTO_PATH, r.photoPath);
+        putNullableInt(v, Records.COL_BG_COLOR, r.bgColorRgb);
+        putNullableInt(v, Records.COL_TEXT_COLOR, r.textColorRgb);
         v.put(Records.COL_UPDATED_AT, now);
         if (isInsert) {
             v.put(Records.COL_CREATED_AT, r.createdAt != null ? r.createdAt : now);
@@ -168,6 +170,14 @@ public class ParkingRepository {
     }
 
     private static void putNullableDouble(ContentValues v, String col, Double value) {
+        if (value == null) {
+            v.putNull(col);
+        } else {
+            v.put(col, value);
+        }
+    }
+
+    private static void putNullableInt(ContentValues v, String col, Integer value) {
         if (value == null) {
             v.putNull(col);
         } else {
@@ -189,6 +199,8 @@ public class ParkingRepository {
         r.longitude = Cursors.getNullableDouble(c, Records.COL_LONGITUDE);
         r.hasGps = Cursors.getBool(c, Records.COL_HAS_GPS);
         r.photoPath = Cursors.getString(c, Records.COL_PHOTO_PATH);
+        r.bgColorRgb = Cursors.getNullableInt(c, Records.COL_BG_COLOR);
+        r.textColorRgb = Cursors.getNullableInt(c, Records.COL_TEXT_COLOR);
         r.createdAt = Cursors.getString(c, Records.COL_CREATED_AT);
         r.updatedAt = Cursors.getString(c, Records.COL_UPDATED_AT);
         return r;

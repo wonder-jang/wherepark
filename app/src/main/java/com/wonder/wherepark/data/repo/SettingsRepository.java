@@ -53,6 +53,7 @@ public class SettingsRepository {
         v.put(Settings.COL_BT_DISCONNECT_STABILIZE_SECONDS, s.btDisconnectStabilizeSeconds);
         v.put(Settings.COL_WIFI_CONNECT_STABILIZE_SECONDS, s.wifiConnectStabilizeSeconds);
         v.put(Settings.COL_WIFI_DISCONNECT_STABILIZE_SECONDS, s.wifiDisconnectStabilizeSeconds);
+        v.put(Settings.COL_AUTO_PHOTO_ANALYSIS, s.autoPhotoAnalysisEnabled ? 1 : 0);
         v.put(Settings.COL_IS_ONBOARDING_COMPLETED, s.isOnboardingCompleted ? 1 : 0);
         v.put(Settings.COL_UPDATED_AT, TimeUtil.now());
 
@@ -111,6 +112,7 @@ public class SettingsRepository {
         s.btDisconnectStabilizeSeconds = Cursors.getInt(c, Settings.COL_BT_DISCONNECT_STABILIZE_SECONDS);
         s.wifiConnectStabilizeSeconds = Cursors.getInt(c, Settings.COL_WIFI_CONNECT_STABILIZE_SECONDS);
         s.wifiDisconnectStabilizeSeconds = Cursors.getInt(c, Settings.COL_WIFI_DISCONNECT_STABILIZE_SECONDS);
+        s.autoPhotoAnalysisEnabled = Cursors.getBool(c, Settings.COL_AUTO_PHOTO_ANALYSIS);
         s.isOnboardingCompleted = Cursors.getBool(c, Settings.COL_IS_ONBOARDING_COMPLETED);
         s.createdAt = Cursors.getString(c, Settings.COL_CREATED_AT);
         s.updatedAt = Cursors.getString(c, Settings.COL_UPDATED_AT);

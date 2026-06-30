@@ -23,6 +23,9 @@ public class ParkingRecord {
     public Double longitude;
     public boolean hasGps = false;
     public String photoPath;
+    /** 분석된 배경/글자 색(ARGB int). 없으면 null. 사용자에겐 스와치로만 노출. */
+    public Integer bgColorRgb;
+    public Integer textColorRgb;
     public String createdAt;
     public String updatedAt;
 

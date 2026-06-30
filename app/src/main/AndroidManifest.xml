@@ -28,6 +28,17 @@
     <!-- 백그라운드 감지 안정화: 배터리 최적화 예외 (§7,§8.5) -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- 주차 표지판 앱 내장 카메라 촬영 (시스템 카메라 검토 화면 우회) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- 주차 인식 시 백그라운드에서 촬영 화면 자동 실행 (다른 앱 위에 표시) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- 잠금/화면 꺼짐 상태에서 잠금화면 위로 촬영 화면 표시 (풀스크린 인텐트) -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-feature
+        android:name="android.hardware.camera.any"
+        android:required="false" />
+
     <!-- 백그라운드 자동 감지: 포그라운드 서비스 (§15) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
@@ -68,6 +79,24 @@
         <activity
             android:name=".ui.input.DrawActivity"
             android:exported="false" />
+
+        <!-- 자동 촬영·분석 확인 화면(입력 요청 알림에서 진입) -->
+        <activity
+            android:name=".ui.auto.AutoCaptureActivity"
+            android:exported="false" />
+
+        <!-- 앱 내장 카메라 촬영 화면(셔터 직후 즉시 반환) -->
+        <activity
+            android:name=".ui.camera.CameraCaptureActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.WherePark" />
+
+        <!-- 사진 원본 전체 보기 -->
+        <activity
+            android:name=".ui.photo.PhotoViewActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WherePark" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

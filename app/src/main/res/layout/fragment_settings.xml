@@ -22,6 +22,24 @@
             </LinearLayout>
         </LinearLayout>
 
+        <!-- 1-2. 주차 사진 분석 옵션 -->
+        <TextView style="@style/SettingsSectionHeader" android:text="@string/settings_section_auto_photo" />
+
+        <LinearLayout style="@style/SettingsRow" android:background="@null">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical"
+                android:layout_marginEnd="12dp">
+                <TextView style="@style/SettingsRowTitle" android:text="@string/settings_auto_photo" />
+                <TextView style="@style/SettingsRowValue"
+                    android:text="@string/settings_auto_photo_desc" />
+            </LinearLayout>
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/switch_auto_photo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical" />
+        </LinearLayout>
+
         <!-- 2. 집 설정 -->
         <TextView style="@style/SettingsSectionHeader" android:text="@string/settings_section_home" />
 
@@ -158,6 +176,24 @@
                 android:layout_weight="1" style="@style/SettingsRowTitle"
                 android:text="@string/settings_perm_battery" />
             <TextView android:id="@+id/val_perm_battery" android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceBodyMedium" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/row_perm_overlay" style="@style/SettingsRow">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" style="@style/SettingsRowTitle"
+                android:text="@string/settings_perm_overlay" />
+            <TextView android:id="@+id/val_perm_overlay" android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceBodyMedium" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/row_perm_fsi" style="@style/SettingsRow">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" style="@style/SettingsRowTitle"
+                android:text="@string/settings_perm_fsi" />
+            <TextView android:id="@+id/val_perm_fsi" android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textAppearance="?attr/textAppearanceBodyMedium" />
         </LinearLayout>
