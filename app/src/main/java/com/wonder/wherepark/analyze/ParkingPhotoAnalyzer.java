@@ -57,6 +57,13 @@ public final class ParkingPhotoAnalyzer {
         @Nullable
         public String rawText;
 
+        /**
+         * 색 계산에 쓸 선택 글자 박스(층 줄 박스 + 위치 박스). analyzer 내부 전용 — 색을 뽑고 나면 의미 없어
+         * UI/직렬화에서는 무시한다. 선택된 층/위치가 없으면 비어 있다.
+         */
+        @Nullable
+        List<Rect> selectionBoxes;
+
         /** 층 정보가 인식되었는지 여부. */
         public boolean hasFloor() {
             return levelType != null && floorLabel != null;
@@ -119,6 +126,32 @@ public final class ParkingPhotoAnalyzer {
         tryRotation(bitmap, 0, fallbackBg, null, callback);
     }
 
+    /**
+     * 실시간 프리뷰용 경량 분석. {@link #analyze}가 4방향 회전을 모두 OCR하는 것과 달리,
+     * 이미 정방향으로 세운 프레임을 회전 없이 한 번만 OCR한다(프레임마다 호출되므로 빠르게).
+     * 콜백은 ML Kit 규약상 호출한 스레드에서 전달된다(보통 메인 스레드).
+     */
+    public static void analyzeFrame(@NonNull Bitmap upright, @NonNull Callback callback) {
+        final Integer fallbackBg = classifyColor(upright);
+        TextRecognizer recognizer = TextRecognition.getClient(
+                new KoreanTextRecognizerOptions.Builder().build());
+        recognizer.process(InputImage.fromBitmap(upright, 0))
+                .addOnSuccessListener(text -> {
+                    recognizer.close();
+                    Result r = parseText(text, upright.getWidth(), upright.getHeight());
+                    RegionColors rc = classifyRegionColors(upright, r.selectionBoxes);
+                    r.bgColorRgb = rc.background != null ? rc.background : fallbackBg;
+                    r.textColorRgb = rc.text;
+                    callback.onResult(r);
+                })
+                .addOnFailureListener(e -> {
+                    recognizer.close();
+                    Result r = new Result();
+                    r.bgColorRgb = fallbackBg;
+                    callback.onResult(r);
+                });
+    }
+
     private static void tryRotation(@NonNull Bitmap original, int index, @Nullable Integer fallbackBg,
                                     @Nullable Result best, @NonNull Callback callback) {
         if (index >= ROTATIONS.length) {
@@ -133,7 +166,7 @@ public final class ParkingPhotoAnalyzer {
                 .addOnSuccessListener(text -> {
                     recognizer.close();
                     Result r = parseText(text, rotated.getWidth(), rotated.getHeight());
-                    RegionColors rc = classifyRegionColors(rotated, text);
+                    RegionColors rc = classifyRegionColors(rotated, r.selectionBoxes);
                     r.bgColorRgb = rc.background;   // 표지판 배경색(없으면 emit 시 fallback)
                     r.textColorRgb = rc.text;       // 글자색
                     if (rotated != original) {
@@ -276,17 +309,34 @@ public final class ParkingPhotoAnalyzer {
                     ? ("B" + fh.floor + "F") : (fh.floor + "F");
         }
 
-        // 2) 위치: 층을 찾은 범위(ROI) 안에서 구역 후보를 찾는다. 층을 찾았으면 층 줄과의 2D 거리(#2),
-        //    못 찾았으면 사진 중앙과의 거리로 고른다.
+        // 2) 위치: 층을 찾은 범위(ROI) 안에서 구역 후보를 먼저 찾는다. 층을 찾았으면 층 줄과의 2D 거리(#2),
+        //    못 찾았으면 사진 중앙과의 거리로 고른다. ROI(주 블록)에서 못 찾으면 전체 텍스트로 확장 —
+        //    표지판에서 층 숫자와 베이 번호(C2 등)가 다른 블록으로 나뉘어 ROI 밖에 있을 때 회수한다.
         Rect floorBox = fh != null ? fh.box : null;
         String floorSpan = fh != null ? fh.span : null;
-        String zone = findPosition(scope, floorBox, floorSpan, cx, cy);
+        PositionHit ph = findPosition(scope, floorBox, floorSpan, cx, cy);
+        if (ph == null && scope != all) {
+            ph = findPosition(all, floorBox, floorSpan, cx, cy);
+        }
+        String zone = ph != null ? ph.text : null;
+        // 방향(EAST/WEST/…)은 구역(A01·C2 등)과 합쳐질 때만 의미가 있다. 방향만 단독이면 위치로 보지 않는다.
         String dir = findDirection(ocr.getText().replace('\n', ' '));
-        if (dir != null) {
-            r.positionText = (zone != null && !zone.isEmpty()) ? dir + " " + zone : dir;
+        if (dir != null && zone != null && !zone.isEmpty()) {
+            r.positionText = dir + " " + zone;
         } else {
             r.positionText = zone;
         }
+
+        // 색 계산 대상: '선택된' 층 줄 박스 + 위치 박스만(전체 글자가 아니라). 같은 줄이면 한 번만.
+        List<Rect> boxes = new ArrayList<>();
+        if (floorBox != null) {
+            boxes.add(floorBox);
+        }
+        Rect posBox = ph != null ? ph.box : null;
+        if (posBox != null && !posBox.equals(floorBox)) {
+            boxes.add(posBox);
+        }
+        r.selectionBoxes = boxes;
         return r;
     }
 
@@ -383,6 +433,8 @@ public final class ParkingPhotoAnalyzer {
     }
 
     private static final Pattern P_NUMBER = Pattern.compile("\\b([0-9]{1,3})\\b");
+    // 영숫자 연속 토큰(구역 반복 회수용). 벽면에 같은 코드가 붙어 G04G04처럼 한 덩어리로 읽힐 때 쓴다.
+    private static final Pattern P_ALNUM = Pattern.compile("[A-Za-z0-9]+");
 
     /**
      * 위치(구역) 후보를 줄 단위로 찾는다. 각 후보의 거리는 층을 찾았으면 층 줄과의 2D 거리(#2),
@@ -392,13 +444,95 @@ public final class ParkingPhotoAnalyzer {
      * 2) 한글 1글자+숫자(가12) — 거리 최단
      * 3) 1~3자리 숫자 — 거리 최단(번호판 등 먼 숫자 배제)
      */
+    /** 선택된 위치(구역) 텍스트 + 그 글자 줄의 화면상 박스(색 표본 영역용). */
+    private static final class PositionHit {
+        final String text;
+        @Nullable
+        final Rect box;
+
+        PositionHit(@NonNull String text, @Nullable Rect box) {
+            this.text = text;
+            this.box = box;
+        }
+    }
+
+    /**
+     * '주기적으로 반복된' 영숫자 토큰에서 한 구역 단위를 회수한다(예: G04G04·04G04·4G04 → G04).
+     * 벽면에 같은 코드가 연달아 있어 OCR이 한 덩어리로 읽은 경우만을 노린다.
+     * 안전장치(사이드이펙트 방지):
+     *  - 길이 4 미만은 무시(A12 등 단일 구역은 건드리지 않음)
+     *  - 토큰의 '테두리'(longestBorder>0 = tail이 head와 일치)가 있어야만, 즉 <b>주기적일 때만</b> 동작
+     *  - 반복 주기(p)는 구역 단위 길이(글자+숫자 1~3 = 2~4)일 때만 인정
+     *  - 한 주기 창을 훑어 '글자+숫자' 구역이 되는 첫 위치를 채택(F/B·숫자없음 제외)
+     */
     @Nullable
-    private static String findPosition(@NonNull List<Line> lines, @Nullable Rect floorBox,
-                                       @Nullable String floorSpan, int cx, int cy) {
+    private static String recoverRepeatedZone(@NonNull String token) {
+        int n = token.length();
+        if (n < 4) {
+            return null; // 단일 구역/짧은 토큰은 대상 아님
+        }
+        int border = longestBorder(token);
+        if (border <= 0) {
+            return null; // 주기(반복)가 아니면 스킵 → 일반 문자열엔 영향 없음
+        }
+        int p = n - border; // 반복 주기(한 단위 길이)
+        if (p < 2 || p > 4) {
+            return null; // 구역 단위(글자1 + 숫자1~3)만 허용
+        }
+        for (int i = 0; i + p <= n; i++) {
+            char letter = token.charAt(i);
+            boolean isLatin = (letter >= 'A' && letter <= 'Z') || (letter >= 'a' && letter <= 'z');
+            if (!isLatin) {
+                continue;
+            }
+            char up = Character.toUpperCase(letter);
+            if (up == 'F' || up == 'B') {
+                continue; // 층 표기 잔재 회피(기존 규칙과 동일)
+            }
+            String digits = token.substring(i + 1, i + p);
+            boolean ok = true;
+            boolean hasDigit = false;
+            for (int k = 0; k < digits.length(); k++) {
+                char c = digits.charAt(k);
+                if (Character.isDigit(c)) {
+                    hasDigit = true;
+                } else if (c != 'O' && c != 'o') { // O/o는 0 오인식으로 허용
+                    ok = false;
+                    break;
+                }
+            }
+            if (ok && hasDigit) {
+                return up + digits.replace('O', '0').replace('o', '0');
+            }
+        }
+        return null;
+    }
+
+    /** KMP 실패함수로 문자열의 가장 긴 '테두리'(진부분 접두=접미) 길이. tail이 head와 겹치는 길이. */
+    private static int longestBorder(@NonNull String s) {
+        int n = s.length();
+        int[] f = new int[n];
+        int k = 0;
+        for (int i = 1; i < n; i++) {
+            while (k > 0 && s.charAt(i) != s.charAt(k)) {
+                k = f[k - 1];
+            }
+            if (s.charAt(i) == s.charAt(k)) {
+                k++;
+            }
+            f[i] = k;
+        }
+        return f[n - 1];
+    }
+
+    @Nullable
+    private static PositionHit findPosition(@NonNull List<Line> lines, @Nullable Rect floorBox,
+                                            @Nullable String floorSpan, int cx, int cy) {
         // 1) 영문 1글자+숫자. 여러 면/회전으로 같은 구역이 반복 인식되므로 가장 자주 나온 구역 채택,
-        //    동률이면 거리(층 또는 중앙)로 가장 가까운 것.
+        //    동률이면 거리(층 또는 중앙)로 가장 가까운 것. 채택 시 그 줄의 박스도 함께 보관(색 표본용).
         java.util.Map<String, Integer> counts = new java.util.HashMap<>();
         java.util.Map<String, Long> minDist = new java.util.HashMap<>();
+        java.util.Map<String, Rect> zoneBox = new java.util.HashMap<>();
         for (Line line : lines) {
             String text = blankSpan(line.text, floorSpan); // 같은 줄에 섞인 층 표기는 가린다
             long dist = distanceTo(line.box, floorBox, cx, cy);
@@ -417,15 +551,32 @@ public final class ParkingPhotoAnalyzer {
                 Long prev = minDist.get(zone);
                 if (prev == null || dist < prev) {
                     minDist.put(zone, dist);
+                    zoneBox.put(zone, line.box);
+                }
+            }
+            // 반복 구역 회수: 벽면에 같은 코드가 연달아 있어 G04G04/04G04/4G04처럼 붙어 읽힌 토큰은
+            // 위 정규식이 단어경계 때문에 놓친다. 토큰이 '주기적'(tail이 head와 일치)일 때만 한 단위(G04)를
+            // 회수해 후보에 '추가'한다. 주기가 아니면 건드리지 않으므로 일반 문자열엔 영향 없음.
+            Matcher alnum = P_ALNUM.matcher(text);
+            while (alnum.find()) {
+                String zone = recoverRepeatedZone(alnum.group());
+                if (zone != null) {
+                    counts.merge(zone, 1, Integer::sum);
+                    Long prev = minDist.get(zone);
+                    if (prev == null || dist < prev) {
+                        minDist.put(zone, dist);
+                        zoneBox.put(zone, line.box);
+                    }
                 }
             }
         }
         String bestZone = pickByFrequency(counts, minDist);
         if (bestZone != null) {
-            return bestZone;
+            return new PositionHit(bestZone, zoneBox.get(bestZone));
         }
         // 2) 한글 1글자+숫자 중 거리(층 또는 중앙)가 가장 가까운 것
         long bestDist = Long.MAX_VALUE;
+        Rect bestBox = null;
         for (Line line : lines) {
             String text = blankSpan(line.text, floorSpan);
             long dist = distanceTo(line.box, floorBox, cx, cy);
@@ -434,15 +585,17 @@ public final class ParkingPhotoAnalyzer {
                 if (dist < bestDist) {
                     bestDist = dist;
                     bestZone = ko.group(1) + ko.group(2);
+                    bestBox = line.box;
                 }
             }
         }
         if (bestZone != null) {
-            return bestZone;
+            return new PositionHit(bestZone, bestBox);
         }
         // 3) 순수 숫자: 거리(층 또는 중앙)가 가장 가까운 1~3자리 수(번호판 등 먼 숫자 배제)
         String bestNum = null;
         bestDist = Long.MAX_VALUE;
+        bestBox = null;
         for (Line line : lines) {
             String text = blankSpan(line.text, floorSpan);
             long dist = distanceTo(line.box, floorBox, cx, cy);
@@ -451,10 +604,11 @@ public final class ParkingPhotoAnalyzer {
                 if (dist < bestDist) {
                     bestDist = dist;
                     bestNum = num.group(1);
+                    bestBox = line.box;
                 }
             }
         }
-        return bestNum;
+        return bestNum != null ? new PositionHit(bestNum, bestBox) : null;
     }
 
     /**
@@ -549,78 +703,92 @@ public final class ParkingPhotoAnalyzer {
     }
 
     /**
-     * OCR이 찾은 글자 박스 영역에서 표지판 배경색과 글자색의 대표 RGB를 추출한다.
-     * 박스 픽셀 대부분은 (지역) 배경, 글자 획은 소수이므로 명도 히스토그램의 최빈값을 지역 배경으로 보고:
-     *  - 배경 명도에 가까운 픽셀(±30) 평균 → 표지판 배경색
-     *  - 배경과 명암 대비가 큰 픽셀(≥55) 중 더 많은 쪽(밝거나 어두운 한쪽) 평균 → 글자색
+     * '선택된' 층/위치 글자 박스에서만 표지판 배경색과 글자색의 대표 RGB를 추출한다(전체 글자가 아님).
+     *  - 글자색: 박스 <b>안쪽</b> 픽셀 중, (링에서 추정한) 지역 배경 명도와 대비가 큰(≥55) 픽셀 평균
+     *  - 배경색: 박스 <b>경계 바로 바깥의 얇은 링</b> 픽셀에서, 명도 최빈값(±30) 평균
+     * 박스가 없거나 표본이 부족하면 해당 색은 null(상위에서 전체 평균색 fallback).
      */
     @NonNull
-    static RegionColors classifyRegionColors(@NonNull Bitmap bitmap, @NonNull Text text) {
+    static RegionColors classifyRegionColors(@NonNull Bitmap bitmap, @Nullable List<Rect> boxes) {
         RegionColors out = new RegionColors();
         int w = bitmap.getWidth();
         int h = bitmap.getHeight();
-        if (w <= 0 || h <= 0) {
+        if (w <= 0 || h <= 0 || boxes == null || boxes.isEmpty()) {
             return out;
         }
-        List<Integer> samples = new ArrayList<>();
-        for (Text.TextBlock block : text.getTextBlocks()) {
-            for (Text.Line line : block.getLines()) {
-                for (Text.Element el : line.getElements()) {
-                    Rect r = el.getBoundingBox();
-                    if (r == null) {
-                        continue;
-                    }
-                    // 글자 주변 배경을 더 담기 위해 박스를 약간 넓힌다.
-                    int pad = Math.max(2, (r.height()) / 6);
-                    int left = Math.max(0, r.left - pad);
-                    int top = Math.max(0, r.top - pad);
-                    int right = Math.min(w, r.right + pad);
-                    int bottom = Math.min(h, r.bottom + pad);
-                    if (right <= left || bottom <= top) {
-                        continue;
-                    }
-                    int sx = Math.max(1, (right - left) / 24);
-                    int sy = Math.max(1, (bottom - top) / 24);
-                    for (int y = top; y < bottom; y += sy) {
-                        for (int x = left; x < right; x += sx) {
-                            samples.add(bitmap.getPixel(x, y));
-                        }
+        List<Integer> ring = new ArrayList<>();   // 박스 경계 바로 바깥(배경)
+        List<Integer> inner = new ArrayList<>();  // 박스 안쪽(글자+지역 배경)
+        for (Rect r : boxes) {
+            if (r == null || r.width() <= 0 || r.height() <= 0) {
+                continue;
+            }
+            int t = Math.max(2, r.height() / 7); // 링 두께 ≈ 글자 높이의 15%
+            int left = Math.max(0, r.left - t);
+            int top = Math.max(0, r.top - t);
+            int right = Math.min(w, r.right + t);
+            int bottom = Math.min(h, r.bottom + t);
+            if (right <= left || bottom <= top) {
+                continue;
+            }
+            int sx = Math.max(1, (right - left) / 48);
+            int sy = Math.max(1, (bottom - top) / 48);
+            for (int y = top; y < bottom; y += sy) {
+                for (int x = left; x < right; x += sx) {
+                    int c = bitmap.getPixel(x, y);
+                    if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) {
+                        inner.add(c);
+                    } else {
+                        ring.add(c); // 박스 바로 바깥 링
                     }
                 }
             }
         }
-        if (samples.size() < 20) {
-            return out;
-        }
-        // 지역 배경 명도(최빈값) 추정
-        int[] lumHist = new int[256];
-        for (int c : samples) {
-            lumHist[luma(c)]++;
-        }
-        int bgLum = 0;
-        for (int i = 1; i < 256; i++) {
-            if (lumHist[i] > lumHist[bgLum]) {
-                bgLum = i;
+        // 배경색: 링의 지역 배경 명도(최빈값) ±30 평균
+        Integer bgLum = modalLuma(ring);
+        if (bgLum != null) {
+            ColorAvg bg = new ColorAvg();
+            for (int c : ring) {
+                if (Math.abs(luma(c) - bgLum) <= 30) {
+                    bg.add(c);
+                }
             }
+            out.background = bg.average();
         }
-        ColorAvg bg = new ColorAvg();
-        ColorAvg bright = new ColorAvg(); // 배경보다 밝은 글자
-        ColorAvg dark = new ColorAvg();   // 배경보다 어두운 글자
-        for (int c : samples) {
-            int d = luma(c) - bgLum;
-            if (Math.abs(d) <= 30) {
-                bg.add(c);
-            } else if (d >= 55) {
-                bright.add(c);
-            } else if (d <= -55) {
-                dark.add(c);
+        // 글자색: 박스 안쪽에서 배경 명도와 대비 큰(≥55) 픽셀 중 더 많은 쪽 평균
+        if (bgLum != null && !inner.isEmpty()) {
+            ColorAvg bright = new ColorAvg(); // 배경보다 밝은 글자
+            ColorAvg dark = new ColorAvg();   // 배경보다 어두운 글자
+            for (int c : inner) {
+                int d = luma(c) - bgLum;
+                if (d >= 55) {
+                    bright.add(c);
+                } else if (d <= -55) {
+                    dark.add(c);
+                }
             }
+            ColorAvg textSide = bright.count >= dark.count ? bright : dark;
+            out.text = textSide.average();
         }
-        out.background = bg.average();
-        // 글자색은 대비가 큰 두 방향 중 픽셀이 더 많은 쪽(보통 한 방향만 존재)
-        ColorAvg textSide = bright.count >= dark.count ? bright : dark;
-        out.text = textSide.average();
         return out;
+    }
+
+    /** 표본 픽셀들의 명도 최빈값(히스토그램 mode). 비어 있으면 null. */
+    @Nullable
+    private static Integer modalLuma(@NonNull List<Integer> samples) {
+        if (samples.isEmpty()) {
+            return null;
+        }
+        int[] hist = new int[256];
+        for (int c : samples) {
+            hist[luma(c)]++;
+        }
+        int best = 0;
+        for (int i = 1; i < 256; i++) {
+            if (hist[i] > hist[best]) {
+                best = i;
+            }
+        }
+        return best;
     }
 
     /** ITU-R BT.601 휘도. */

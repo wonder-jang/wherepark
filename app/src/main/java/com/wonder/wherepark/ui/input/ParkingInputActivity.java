@@ -18,7 +18,6 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.material.button.MaterialButtonToggleGroup;
@@ -144,12 +143,14 @@ public class ParkingInputActivity extends AppCompatActivity {
     private void registerPhotoLaunchers() {
         cameraLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(), result -> {
-                    String path = result.getResultCode() == RESULT_OK && result.getData() != null
-                            ? result.getData().getStringExtra(CameraCaptureActivity.EXTRA_RESULT_PATH)
-                            : null;
+                    Intent data = result.getResultCode() == RESULT_OK ? result.getData() : null;
+                    String path = data != null
+                            ? data.getStringExtra(CameraCaptureActivity.EXTRA_RESULT_PATH) : null;
                     if (path != null) {
+                        // 촬영 화면에서 실시간으로 본 분석 결과를 그대로 폼에 반영(별도 확인 다이얼로그 없음).
+                        ParkingPhotoAnalyzer.Result analysis = CameraCaptureActivity.readResult(data);
                         File f = new File(path);
-                        compressAndSet(Uri.fromFile(f), f);
+                        compressAndSet(Uri.fromFile(f), f, analysis);
                     }
                 });
         drawLauncher = registerForActivityResult(
@@ -422,8 +423,12 @@ public class ParkingInputActivity extends AppCompatActivity {
         cameraLauncher.launch(new Intent(this, CameraCaptureActivity.class));
     }
 
-    /** 소스 Uri를 압축 저장하고 미리보기에 반영. 백그라운드에서 처리. */
-    private void compressAndSet(Uri source, @Nullable File tempToDelete) {
+    /**
+     * 소스 Uri를 압축 저장하고 미리보기에 반영한 뒤, 촬영 화면에서 실시간으로 인식한 분석 결과를
+     * 폼에 바로 반영한다(별도 확인 다이얼로그 없음). 백그라운드에서 압축 처리.
+     */
+    private void compressAndSet(Uri source, @Nullable File tempToDelete,
+                               @Nullable ParkingPhotoAnalyzer.Result analysis) {
         new Thread(() -> {
             String path = photoStore.saveCompressed(source);
             runOnUiThread(() -> {
@@ -436,114 +441,11 @@ public class ParkingInputActivity extends AppCompatActivity {
                     return;
                 }
                 setNewPhoto(path);
-                analyzePhoto(path); // 촬영 사진 자동 분석 후 확인 → 입력값 반영
-            });
-        }).start();
-    }
-
-    /**
-     * 촬영한 사진을 온디바이스로 분석해 층·위치·배경색을 추출하고,
-     * 확인 다이얼로그에서 사용자가 "적용"하면 입력 화면의 값들을 갱신한다.
-     */
-    private void analyzePhoto(String path) {
-        new Thread(() -> {
-            Bitmap bmp = BitmapFactory.decodeFile(path);
-            runOnUiThread(() -> {
-                if (bmp == null || isFinishing()) {
-                    return;
+                if (analysis != null) {
+                    applyAnalysisToForm(analysis); // 실시간 분석 결과를 입력값에 반영
                 }
-                ParkingPhotoAnalyzer.analyze(bmp, result -> {
-                    bmp.recycle();
-                    if (!isFinishing()) {
-                        showAnalysisDialog(result);
-                    }
-                });
             });
         }).start();
-    }
-
-    private void showAnalysisDialog(ParkingPhotoAnalyzer.Result r) {
-        new AlertDialog.Builder(this)
-                .setTitle(com.wonder.wherepark.R.string.input_analysis_title)
-                .setView(buildAnalysisView(r))
-                .setPositiveButton(com.wonder.wherepark.R.string.input_analysis_apply,
-                        (d, w) -> applyAnalysisToForm(r))
-                .setNegativeButton(com.wonder.wherepark.R.string.input_analysis_dismiss, null)
-                .show();
-    }
-
-    /** 분석 결과(층/위치/배경·글자 색 견본+HEX/OCR 원문)를 담은 다이얼로그 뷰를 구성한다. */
-    private android.view.View buildAnalysisView(ParkingPhotoAnalyzer.Result r) {
-        String none = getString(com.wonder.wherepark.R.string.auto_detected_none);
-        int pad = dp(20);
-        android.widget.LinearLayout root = new android.widget.LinearLayout(this);
-        root.setOrientation(android.widget.LinearLayout.VERTICAL);
-        root.setPadding(pad, dp(12), pad, dp(8));
-
-        String floor = r.hasFloor() ? ParkingFormat.levelLabel(r.levelType) + " " + r.floorLabel : none;
-        String position = r.positionText != null && !r.positionText.isEmpty() ? r.positionText : none;
-        root.addView(textLine(getString(com.wonder.wherepark.R.string.input_analysis_floor, floor)));
-        root.addView(textLine(getString(com.wonder.wherepark.R.string.input_analysis_position, position)));
-        root.addView(colorRow(getString(com.wonder.wherepark.R.string.auto_detected_color), r.bgColorRgb));
-        root.addView(colorRow(getString(com.wonder.wherepark.R.string.auto_detected_text_color), r.textColorRgb));
-
-        String raw = r.rawText != null && !r.rawText.trim().isEmpty()
-                ? r.rawText.replace('\n', ' ').trim()
-                : getString(com.wonder.wherepark.R.string.analysis_debug_none);
-        android.widget.TextView dbg = textLine(getString(com.wonder.wherepark.R.string.analysis_debug_raw, raw));
-        dbg.setTextColor(0xFF888888);
-        ((android.widget.LinearLayout.LayoutParams) dbg.getLayoutParams()).topMargin = dp(12);
-        root.addView(dbg);
-        return root;
-    }
-
-    private android.widget.TextView textLine(String text) {
-        android.widget.TextView tv = new android.widget.TextView(this);
-        tv.setText(text);
-        android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.topMargin = dp(6);
-        tv.setLayoutParams(lp);
-        return tv;
-    }
-
-    /** "라벨  [색 견본]" 한 줄(HEX는 노출하지 않음). 색이 없으면 "인식 안 됨". */
-    private android.view.View colorRow(String label, @Nullable Integer rgb) {
-        android.widget.LinearLayout row = new android.widget.LinearLayout(this);
-        row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
-        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        android.widget.LinearLayout.LayoutParams rlp = new android.widget.LinearLayout.LayoutParams(
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
-        rlp.topMargin = dp(8);
-        row.setLayoutParams(rlp);
-
-        android.widget.TextView lbl = new android.widget.TextView(this);
-        lbl.setText(label);
-        row.addView(lbl, new android.widget.LinearLayout.LayoutParams(dp(64),
-                android.view.ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        if (rgb != null) {
-            android.view.View swatch = new android.view.View(this);
-            android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
-            gd.setColor(0xFF000000 | rgb);
-            gd.setCornerRadius(dp(4));
-            gd.setStroke(2, 0xFF888888);
-            swatch.setBackground(gd);
-            android.widget.LinearLayout.LayoutParams slp =
-                    new android.widget.LinearLayout.LayoutParams(dp(26), dp(26));
-            row.addView(swatch, slp);
-        } else {
-            android.widget.TextView nv = new android.widget.TextView(this);
-            nv.setText(com.wonder.wherepark.R.string.auto_detected_none);
-            row.addView(nv);
-        }
-        return row;
-    }
-
-    private int dp(int value) {
-        return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
     /** 분석된 배경/글자 색을 메모 행 오른쪽의 결합 스와치(배경 속 글자색)로 표시한다. */

@@ -117,36 +117,27 @@
     <string name="input_err_etc">기타 주차는 추가 위치 정보 또는 사진 중 하나 이상이 필요합니다.</string>
     <string name="input_photo_fail">사진을 저장하지 못했습니다.</string>
     <string name="input_saved">주차 위치를 저장했습니다.</string>
-    <string name="input_analyzing">사진을 분석하고 있습니다…</string>
-    <string name="input_analysis_title">사진 분석 결과</string>
-    <string name="input_analysis_apply">적용</string>
-    <string name="input_analysis_dismiss">닫기</string>
-    <string name="input_analysis_floor">층: %1$s</string>
-    <string name="input_analysis_position">위치: %1$s</string>
-    <string name="input_analysis_color">배경색: %1$s</string>
-    <string name="input_analysis_text_color">글자색: %1$s</string>
     <string name="input_analysis_applied">분석 결과를 입력값에 반영했습니다.</string>
 
-    <!-- 자동 촬영·분석 확인 화면 -->
-    <string name="auto_capture_title">주차 정보 확인</string>
+    <!-- 자동 촬영 저장 진행 화면 -->
     <string name="auto_analyzing">사진을 분석하고 있습니다…</string>
-    <string name="auto_detected_floor">인식된 층</string>
-    <string name="auto_detected_position">인식된 위치</string>
-    <string name="auto_detected_color">배경색</string>
-    <string name="auto_detected_text_color">글자색</string>
     <string name="auto_detected_none">인식 안 됨</string>
-    <string name="auto_confirm">이대로 저장</string>
-    <string name="auto_edit">수정</string>
-    <string name="auto_retake">다시 촬영</string>
     <string name="auto_capture_canceled">촬영이 취소되었습니다.</string>
-    <string name="camera_hint">주차 위치를 화면 중앙에 담고 촬영하세요.</string>
+
+    <!-- 실시간 분석 촬영 화면 -->
     <string name="camera_shutter">촬영</string>
     <string name="camera_permission_denied">카메라 권한이 필요합니다.</string>
-    <string name="auto_hint">아래 정보가 맞으면 저장, 다르면 수정을 눌러 직접 고치세요.</string>
+    <string name="camera_hint_live">화면 중앙에 주차 표지판을 담으면 아래에 인식 결과가 나옵니다. 맞으면 촬영하세요.</string>
+    <string name="camera_live_floor">층</string>
+    <string name="camera_live_position">위치</string>
+    <string name="camera_live_bg">배경색</string>
+    <string name="camera_live_text">글자색</string>
+    <string name="camera_live_waiting">인식 중…</string>
 
     <!-- 분석 디버그(안정화 전까지 OCR 원문 표시) -->
     <string name="analysis_debug_raw">[디버그] OCR 원문: %1$s</string>
     <string name="analysis_debug_none">(인식된 글자 없음)</string>
+    <string name="analysis_debug_votes">[디버그] 누적 정렬 : 층 %1$s · 위치 %2$s</string>
 
     <!-- 주차 위치 탭 (§9) -->
     <string name="parking_auto_capture">주차 사진 촬영</string>
