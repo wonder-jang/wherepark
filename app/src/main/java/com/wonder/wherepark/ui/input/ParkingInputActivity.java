@@ -590,14 +590,21 @@ public class ParkingInputActivity extends AppCompatActivity {
         if (isNew) {
             // 자동 감지된 주차를 입력하면 AUTO, 순수 수동 저장이면 MANUAL (§13.10)
             r.saveType = autoDetectedPark ? SaveType.AUTO : SaveType.MANUAL;
-            r.parkedAt = TimeUtil.now();
-            if (capturedLocation != null) { // §16.1 가능하면 GPS 저장
-                r.latitude = capturedLocation.getLatitude();
-                r.longitude = capturedLocation.getLongitude();
-                r.hasGps = true;
+            // 주차 시 자동 저장된 GPS 자리표시 레코드가 있으면 새로 만들지 않고 그 레코드를 채워 갱신한다.
+            ParkingRecord placeholder = autoDetectedPark ? parkingRepo.getCurrent() : null;
+            if (placeholder != null && placeholder.isGpsPlaceholder()) {
+                r.id = placeholder.id;
+                r.saveType = SaveType.AUTO;
+                r.parkedAt = placeholder.parkedAt; // 주차 시점 유지
+                applyGps(r, placeholder);
+                parkingRepo.update(r); // is_current 유지
+                markParked(r.id);
+            } else {
+                r.parkedAt = TimeUtil.now();
+                applyGps(r, null);
+                long id = parkingRepo.insertAsCurrent(r);
+                markParked(id);
             }
-            long id = parkingRepo.insertAsCurrent(r);
-            markParked(id);
         } else {
             parkingRepo.update(r);
         }
@@ -633,6 +640,22 @@ public class ParkingInputActivity extends AppCompatActivity {
             NotificationHelper.showOngoingParking(this, r); // §14.2 (서비스 없을 때 fallback)
         } else {
             NotificationHelper.cancelOngoingParking(this); // §12.8 집 주차는 Ongoing 미등록
+        }
+    }
+
+    /**
+     * §16.1 저장 레코드에 GPS를 채운다. 이번에 잡은 위치가 있으면 우선 쓰고, 없으면 자리표시가 갖고 있던
+     * 주차 시점 GPS를 유지한다(둘 다 없으면 GPS 없음).
+     */
+    private void applyGps(ParkingRecord r, @Nullable ParkingRecord placeholder) {
+        if (capturedLocation != null) {
+            r.latitude = capturedLocation.getLatitude();
+            r.longitude = capturedLocation.getLongitude();
+            r.hasGps = true;
+        } else if (placeholder != null && placeholder.hasGps) {
+            r.latitude = placeholder.latitude;
+            r.longitude = placeholder.longitude;
+            r.hasGps = true;
         }
     }
 

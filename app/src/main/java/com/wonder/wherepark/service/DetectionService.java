@@ -169,10 +169,14 @@ public class DetectionService extends Service implements StateEngine.Listener {
     private void applyForegroundState() {
         ParkingState st = stateRepo.get();
         ParkingRecord current = parkingRepo.getCurrent();
+        // 자동 저장된 GPS 자리표시(상세 미입력)는 아직 "입력 대기"로 취급한다(입력 요청 알림과 중복 방지).
+        boolean placeholder = current != null && current.isGpsPlaceholder();
         // 주차 확정 후 위치 미입력 대기 구간: 입력 요청 알림만 띄우고 상시 알림은 숨긴다(중복 방지).
-        boolean hideForInputWaiting = st.parkingStatus == ParkingStatus.PARKED && current == null;
+        boolean hideForInputWaiting = st.parkingStatus == ParkingStatus.PARKED
+                && (current == null || placeholder);
         // 외부(OUTSIDE) 주차로 저장된 현재 기록이 있으면, 집 Wi-Fi 연결 중이어도 상시 알림을 표시한다.
-        boolean outsideParked = current != null && current.parkingPlaceType == ParkingPlaceType.OUTSIDE;
+        boolean outsideParked = current != null && !placeholder
+                && current.parkingPlaceType == ParkingPlaceType.OUTSIDE;
         boolean hideForHomeParked = st.parkingStatus == ParkingStatus.PARKED
                 && st.homeStatus == HomeStatus.HOME
                 && !outsideParked;
@@ -203,7 +207,7 @@ public class DetectionService extends Service implements StateEngine.Listener {
             text = getString(R.string.noti_fgs_driving);
         } else if (st.parkingStatus == ParkingStatus.PARKED) {
             ParkingRecord current = parkingRepo.getCurrent();
-            if (current != null) {
+            if (current != null && !current.isGpsPlaceholder()) {
                 // 위치가 저장된 주차(외부 주차/외출 등) → 주차 위치를 상시 알림으로 표시
                 title = getString(R.string.noti_away_title); // "주차 위치"
                 text = ParkingFormat.summary(current);

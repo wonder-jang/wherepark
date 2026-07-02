@@ -156,19 +156,42 @@ public class AutoCaptureActivity extends AppCompatActivity {
         rec.bgColorRgb = r.bgColorRgb;     // 색은 별도 컬럼
         rec.textColorRgb = r.textColorRgb;
         rec.photoPath = savedPhotoPath;
-        rec.parkedAt = TimeUtil.now();
-        if (capturedLocation != null) {
-            rec.latitude = capturedLocation.getLatitude();
-            rec.longitude = capturedLocation.getLongitude();
-            rec.hasGps = true;
-        }
 
-        long id = parkingRepo.insertAsCurrent(rec);
+        // 주차 시 자동 저장된 GPS 자리표시 레코드가 있으면 새로 만들지 않고 그 레코드를 채워 갱신한다.
+        ParkingRecord placeholder = parkingRepo.getCurrent();
+        long id;
+        if (placeholder != null && placeholder.isGpsPlaceholder()) {
+            rec.id = placeholder.id;
+            rec.parkedAt = placeholder.parkedAt; // 주차 시점 유지
+            applyGps(rec, placeholder);
+            parkingRepo.update(rec); // is_current 유지
+            id = placeholder.id;
+        } else {
+            rec.parkedAt = TimeUtil.now();
+            applyGps(rec, null);
+            id = parkingRepo.insertAsCurrent(rec);
+        }
         markParked(id);
         updateNotificationsForCurrent(rec, place, s);
 
         toast(R.string.input_saved);
         finish();
+    }
+
+    /**
+     * 저장 레코드에 GPS를 채운다. 이번에 잡은 위치가 있으면 우선 쓰고, 없으면 자리표시가 갖고 있던
+     * 주차 시점 GPS를 유지한다(둘 다 없으면 GPS 없음).
+     */
+    private void applyGps(ParkingRecord rec, @Nullable ParkingRecord placeholder) {
+        if (capturedLocation != null) {
+            rec.latitude = capturedLocation.getLatitude();
+            rec.longitude = capturedLocation.getLongitude();
+            rec.hasGps = true;
+        } else if (placeholder != null && placeholder.hasGps) {
+            rec.latitude = placeholder.latitude;
+            rec.longitude = placeholder.longitude;
+            rec.hasGps = true;
+        }
     }
 
     /** 현재 주차로 상태 전환(§9.6, §10.1). */

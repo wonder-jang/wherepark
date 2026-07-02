@@ -110,6 +110,10 @@ public class ParkingFragment extends Fragment {
 
         ParkingState state = stateRepo.get();
         ParkingRecord current = parkingRepo.getCurrent();
+        // 자동 저장된 GPS 자리표시(상세 미입력)는 아직 "미입력"으로 취급해 촬영/입력을 계속 유도하되,
+        // GPS는 있으므로 지도 버튼은 제공한다. 상세가 채워진 실제 레코드만 "완료"로 표시.
+        boolean placeholder = current != null && current.isGpsPlaceholder();
+        ParkingRecord filled = placeholder ? null : current;
 
         hideAllButtons();
         binding.imgPhoto.setVisibility(View.GONE);
@@ -120,30 +124,42 @@ public class ParkingFragment extends Fragment {
             binding.txtStatus.setText(R.string.parking_driving);
             binding.txtLocation.setText(R.string.parking_driving);
             show(binding.btnManualSave);
-        } else if (current != null) {
+            binding.btnManualSave.setText(R.string.parking_manual_save);
+        } else if (filled != null) {
             // 주차 + 위치 입력됨 (§9.2) — 입력된 주차 구분(재택/외출)으로 표시
-            binding.txtStatus.setText(parkedStatusRes(current.parkingPlaceType == ParkingPlaceType.HOME));
-            binding.txtLocation.setText(ParkingFormat.summary(current));
-            showColorSwatch(current);
-            showPhoto(current);
+            binding.txtStatus.setText(parkedStatusRes(filled.parkingPlaceType == ParkingPlaceType.HOME));
+            binding.txtLocation.setText(ParkingFormat.summary(filled));
+            showColorSwatch(filled);
+            showPhoto(filled);
             show(binding.btnEdit);
-            if (current.hasGps) {
+            if (filled.hasGps) {
                 show(binding.btnMap);
                 binding.btnMap.setOnClickListener(v -> MapLauncher.open(requireContext(),
-                        current.latitude, current.longitude, ParkingFormat.summary(current)));
+                        filled.latitude, filled.longitude, ParkingFormat.summary(filled)));
             }
             show(binding.btnClear);
-            binding.btnEdit.setOnClickListener(v -> openInput(current.id));
+            binding.btnEdit.setOnClickListener(v -> openInput(filled.id));
             binding.btnClear.setOnClickListener(v -> confirmClear());
         } else if (state.parkingStatus == ParkingStatus.PARKED) {
             // 주차 + 위치 미입력 (§9.2, §10.2) — 레코드가 없으므로 집 상태(재택/외출)로 구분
             binding.txtStatus.setText(parkedStatusRes(state.homeStatus == HomeStatus.HOME));
-            binding.txtLocation.setText(R.string.parking_no_location);
+            // 자동 저장된 GPS가 있으면 그 사실을 알리고 지도로 안내(상세는 여전히 입력 유도).
+            if (placeholder && current.hasGps) {
+                binding.txtLocation.setText(R.string.parking_gps_only);
+                show(binding.btnMap);
+                binding.btnMap.setOnClickListener(v -> MapLauncher.open(requireContext(),
+                        current.latitude, current.longitude, getString(R.string.parking_gps_only)));
+            } else {
+                binding.txtLocation.setText(R.string.parking_no_location);
+            }
             show(binding.btnInput);
             if (settings.autoPhotoAnalysisEnabled) {
-                // 자동 모드: 버튼을 촬영으로 바꾼다.
+                // 자동 모드: 버튼을 촬영으로 바꾸고, 수동 입력도 함께 제공한다.
                 binding.btnInput.setText(R.string.parking_auto_capture);
                 binding.btnInput.setOnClickListener(v -> openAutoCapture());
+                show(binding.btnManualSave);
+                binding.btnManualSave.setText(R.string.parking_manual_input);
+                binding.btnManualSave.setOnClickListener(v -> openInput(ParkingRecord.NO_ID));
                 // 오버레이 권한이 있으면 AutoCaptureLauncher가 자동 실행을 책임지므로 여기선 띄우지 않는다(중복 방지).
                 // 권한이 없을 때만 화면이 떠 있는 동안 1회 자동으로 띄운다(포그라운드 폴백).
                 if (!AutoCaptureLauncher.canAutoLaunch(requireContext())) {
@@ -160,6 +176,7 @@ public class ParkingFragment extends Fragment {
             binding.txtStatus.setText(R.string.parking_none);
             binding.txtLocation.setText(R.string.parking_none);
             show(binding.btnManualSave);
+            binding.btnManualSave.setText(R.string.parking_manual_save);
         }
     }
 

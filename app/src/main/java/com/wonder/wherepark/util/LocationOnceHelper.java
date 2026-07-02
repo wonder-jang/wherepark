@@ -83,6 +83,24 @@ public final class LocationOnceHelper {
         }, TIMEOUT_MS);
     }
 
+    /**
+     * 마지막으로 알려진 위치를 즉시(동기) 반환한다. 없으면 null.
+     * 주차 시점에 GPS 자리표시 레코드를 곧바로 만들 때처럼 대기 없이 위치가 필요한 경우에 쓴다.
+     * 위치 권한은 호출 측에서 확인한 뒤 호출해야 한다.
+     */
+    @RequiresPermission(anyOf = {
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION})
+    @Nullable
+    public static Location lastKnown(@NonNull Context context) {
+        LocationManager lm = (LocationManager) context.getApplicationContext()
+                .getSystemService(Context.LOCATION_SERVICE);
+        if (lm == null) {
+            return null;
+        }
+        return lastKnown(lm);
+    }
+
     @RequiresPermission(anyOf = {
             android.Manifest.permission.ACCESS_FINE_LOCATION,
             android.Manifest.permission.ACCESS_COARSE_LOCATION})

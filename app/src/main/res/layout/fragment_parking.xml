@@ -104,7 +104,7 @@
                 android:id="@+id/btn_manual_save"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
+                android:layout_marginTop="12dp"
                 android:text="@string/parking_manual_save"
                 android:visibility="gone" />
 
@@ -112,7 +112,7 @@
                 android:id="@+id/btn_input"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
+                android:layout_marginTop="12dp"
                 android:text="@string/parking_input"
                 android:visibility="gone" />
 
@@ -120,7 +120,7 @@
                 android:id="@+id/btn_edit"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
+                android:layout_marginTop="12dp"
                 android:text="@string/parking_edit"
                 android:visibility="gone" />
 
@@ -129,7 +129,7 @@
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="12dp"
                 android:text="@string/parking_map"
                 android:visibility="gone" />
 
@@ -138,7 +138,7 @@
                 style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="12dp"
                 android:text="@string/parking_clear"
                 android:visibility="gone" />
         </LinearLayout>

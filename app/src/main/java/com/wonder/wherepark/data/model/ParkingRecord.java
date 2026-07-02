@@ -36,4 +36,15 @@ public class ParkingRecord {
     public boolean hasPhoto() {
         return photoPath != null && !photoPath.isEmpty();
     }
+
+    /**
+     * 사용자 상세 입력 없이 주차 시점 GPS만 담아 자동 생성된 자리표시 레코드인지 판단한다.
+     * 층·메모·사진이 모두 비어 있으면 자리표시로 본다(입력 검증 §12.7상 실제 저장 레코드는
+     * 층 또는 메모 또는 사진 중 하나는 반드시 있으므로 오탐되지 않는다).
+     */
+    public boolean isGpsPlaceholder() {
+        boolean noFloor = floorLabel == null || floorLabel.isEmpty();
+        boolean noMemo = memo == null || memo.trim().isEmpty();
+        return noFloor && noMemo && !hasPhoto();
+    }
 }
